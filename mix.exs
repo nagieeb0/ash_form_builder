@@ -9,7 +9,7 @@ defmodule AshFormBuilder.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-
+      
       # Hex.pm Package Configuration
       description: """
       ⚠️  EXPERIMENTAL - Use at Your Own Risk ⚠️
@@ -19,9 +19,9 @@ defmodule AshFormBuilder.MixProject do
       
       EXPERIMENTAL: API may change. Use at your own risk.
       """,
-
+      
       package: package(),
-
+      
       # Docs
       name: "AshFormBuilder",
       source_url: "https://github.com/nagieeb0/ash_form_builder",
@@ -55,32 +55,19 @@ defmodule AshFormBuilder.MixProject do
   
   defp docs do
     [
-      main: "AshFormBuilder",
-      logo: "assets/logo.png",  # Add logo if available
-      source_ref: "v#{@version}",
-      source_url: @source_url,
+      main: "readme",
+      source_ref: "v#{project()[:version]}",
+      source_url: project()[:source_url],
       extras: [
         "README.md",
         "CHANGELOG.md",
         "guides/todo_app_integration.exs",
         "guides/relationships_guide.exs",
-        "example_usage.ex",
-        "lib/ash_form_builder/docs.ex",
-        "lib/ash_form_builder/guide/installation.ex",
-        "lib/ash_form_builder/guide/customization.ex",
-        "lib/ash_form_builder/guide/fields.ex"
+        "example_usage.ex"
       ],
       groups_for_extras: [
-        Guides: [
-          "lib/ash_form_builder/guide/installation.ex",
-          "lib/ash_form_builder/guide/customization.ex",
-          "lib/ash_form_builder/guide/fields.ex",
-          "guides/todo_app_integration.exs",
-          "guides/relationships_guide.exs"
-        ],
-        Examples: [
-          "example_usage.ex"
-        ]
+        Guides: ["guides/todo_app_integration.exs", "guides/relationships_guide.exs"],
+        Examples: ["example_usage.ex"]
       ],
       groups_for_modules: [
         "Core Modules": [
@@ -97,89 +84,13 @@ defmodule AshFormBuilder.MixProject do
           AshFormBuilder.Theme.MishkaTheme,
           AshFormBuilder.Themes.Default
         ],
-        Guides: [
-          AshFormBuilder.Guide.Installation,
-          AshFormBuilder.Guide.Customization,
-          AshFormBuilder.Guide.Fields
-        ],
         Transformers: [
           AshFormBuilder.Transformers.GenerateFormModule,
           AshFormBuilder.Transformers.ResolveNestedResources
         ]
-      ],
-      before_closing_body_tag: &before_closing_body_tag/1,
-      skip_undefined_reference_warnings_on: ["CHANGELOG.md"]
+      ]
     ]
   end
-  
-  defp before_closing_body_tag(:html) do
-    """
-    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-    <script>
-      document.addEventListener("DOMContentLoaded", function () {
-        mermaid.initialize({
-          startOnLoad: false,
-          theme: document.body.className.includes("dark") ? "dark" : "default"
-        });
-        let id = 0;
-        for (const codeBlock of document.querySelectorAll('pre code.language-mermaid')) {
-          const pre = codeBlock.parentNode;
-          const id = `mermaid-${id++}`;
-          const graphDefinition = codeBlock.textContent;
-          const graphDiv = document.createElement('div');
-          graphDiv.id = id;
-          pre.parentNode.insertBefore(graphDiv, pre);
-          pre.remove();
-          mermaid.render(id, graphDefinition).then(({svg}) => {
-            graphDiv.innerHTML = svg;
-          });
-        }
-      });
-    </script>
-    <style>
-      /* Custom documentation styles */
-      body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      }
-      .content-inner {
-        max-width: 1400px;
-      }
-      pre code {
-        border-radius: 6px;
-      }
-      /* Warning box styles */
-      .warning-box {
-        background-color: #fff3cd;
-        border-left: 4px solid #ffc107;
-        padding: 1rem;
-        margin: 1rem 0;
-        border-radius: 4px;
-      }
-      .warning-box strong {
-        color: #856404;
-      }
-      /* Guide navigation */
-      .guide-nav {
-        background: #f8f9fa;
-        padding: 1rem;
-        border-radius: 6px;
-        margin: 1rem 0;
-      }
-      .guide-nav h3 {
-        margin-top: 0;
-      }
-      .guide-nav ul {
-        list-style: none;
-        padding-left: 0;
-      }
-      .guide-nav li {
-        margin: 0.5rem 0;
-      }
-    </style>
-    """
-  end
-  
-  defp before_closing_body_tag(_), do: ""
   
   defp package do
     [
