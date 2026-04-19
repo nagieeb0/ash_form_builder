@@ -544,13 +544,14 @@ end
 ### Core Documentation
 
 - [**Hex Docs**](https://hexdocs.pm/ash_form_builder) - Complete API reference
+- [**Readme**](https://hexdocs.pm/ash_form_builder/readme.html) - Getting started guide
 - [**Changelog**](https://hexdocs.pm/ash_form_builder/changelog.html) - Version history and migration notes
 
 ### Guides
 
-- [**Theme Customization Guide**](https://hexdocs.pm/ash_form_builder/guides/theme_customization_guide.html) - Create custom themes
-- [**Todo App Tutorial**](https://hexdocs.pm/ash_form_builder/guides/todo_app_integration.html) - Step-by-step integration
-- [**Relationships Guide**](https://hexdocs.pm/ash_form_builder/guides/relationships_guide.html) - has_many vs many_to_many
+- [**Theme Customization Guide**](https://hexdocs.pm/ash_form_builder/theme_customization_guide.html) - Create custom themes
+- [**Todo App Tutorial**](https://hexdocs.pm/ash_form_builder/todo_app_integration.html) - Step-by-step integration
+- [**Relationships Guide**](https://hexdocs.pm/ash_form_builder/relationships_guide.html) - has_many vs many_to_many
 - [**File Upload Guide**](https://hexdocs.pm/ash_form_builder/file_upload_guide.html) - File upload configuration
 - [**Storage Configuration**](https://hexdocs.pm/ash_form_builder/storage_configuration.html) - S3, GCS, and local storage
 
