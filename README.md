@@ -5,6 +5,8 @@
 [![Hex.pm](https://img.shields.io/hexpm/l/ash_form_builder.svg)](https://hex.pm/packages/ash_form_builder)
 [![Documentation](https://img.shields.io/badge/hex.pm-docs-green.svg)](https://hexdocs.pm/ash_form_builder)
 
+**Latest Version:** [0.2.3](https://hex.pm/packages/ash_form_builder/0.2.3) | [Changelog](CHANGELOG.md)
+
 **AshFormBuilder = AshPhoenix.Form + Auto UI + Smart Components + Themes**
 
 A declarative form generation engine for [Ash Framework](https://hexdocs.pm/ash) and [Phoenix LiveView](https://hexdocs.pm/phoenix_live_view).
@@ -14,7 +16,7 @@ Define your form structure in **1-3 lines** inside your Ash Resource, and get a 
 - ✅ Searchable combobox for many-to-many relationships
 - ✅ Creatable combobox (create related records on-the-fly)
 - ✅ Dynamic nested forms for has_many relationships
-- ✅ Pluggable theme system (Default, MishkaChelekom, or custom)
+- ✅ Pluggable theme system (Default, Glassmorphism, Shadcn, MishkaChelekom, or custom)
 - ✅ Full Ash policy and validation enforcement
 
 ---
@@ -40,7 +42,7 @@ Define your form structure in **1-3 lines** inside your Ash Resource, and get a 
 ### 1. Add to mix.exs
 
 ```elixir
-{:ash_form_builder, "~> 0.2.0"}
+{:ash_form_builder, "~> 0.2.3"}
 ```
 
 ### 2. Configure Theme (config/config.exs)
@@ -472,15 +474,37 @@ form = MyApp.Todos.form_to_update_task(task, actor: current_user)
 
 ### Built-in Themes
 
-```elixir
-# Default theme (semantic HTML, no dependencies)
-config :ash_form_builder, :theme, AshFormBuilder.Themes.Default
+#### AshFormBuilder.Themes.Default (Recommended)
+Production-ready Tailwind CSS styling with zero configuration.
 
-# MishkaChelekom theme (requires mishka_chelekom dependency)
+```elixir
+config :ash_form_builder, :theme, AshFormBuilder.Themes.Default
+```
+
+#### AshFormBuilder.Themes.Glassmorphism (New in 0.2.3)
+Premium glass-effect UI with backdrop blur, smooth animations, and dark mode.
+
+```elixir
+config :ash_form_builder, :theme, AshFormBuilder.Themes.Glassmorphism
+```
+
+#### AshFormBuilder.Themes.Shadcn (New in 0.2.3)
+Clean, minimal design inspired by shadcn/ui with crisp borders and focus rings.
+
+```elixir
+config :ash_form_builder, :theme, AshFormBuilder.Themes.Shadcn
+```
+
+#### AshFormBuilder.Theme.MishkaTheme
+MishkaChelekom component integration (requires `mishka_chelekom` dependency).
+
+```elixir
 config :ash_form_builder, :theme, AshFormBuilder.Theme.MishkaTheme
 ```
 
-### Custom Theme Example
+### Custom Themes
+
+Create your own theme by implementing the `AshFormBuilder.Theme` behaviour. See the [Theme Customization Guide](guides/theme_customization_guide.md) for a complete tutorial with examples for Tailwind, Bootstrap, and more.
 
 ```elixir
 defmodule MyAppWeb.CustomTheme do
@@ -517,10 +541,13 @@ end
 
 ## 📚 Documentation
 
-- [**Installation Guide**](https://hexdocs.pm/ash_form_builder) - Complete setup instructions
-- [**Todo App Tutorial**](guides/todo_app_integration.exs) - Step-by-step integration guide
-- [**Relationships Guide**](guides/relationships_guide.exs) - has_many vs many_to_many deep dive
-- [**API Reference**](https://hexdocs.pm/ash_form_builder/api-reference.html) - Complete module docs
+- [**Hex Docs**](https://hexdocs.pm/ash_form_builder) - Complete API reference
+- [**Theme Customization Guide**](guides/theme_customization_guide.md) - Create custom themes
+- [**Todo App Tutorial**](guides/todo_app_integration.livemd) - Step-by-step integration
+- [**Relationships Guide**](guides/relationships_guide.livemd) - has_many vs many_to_many
+- [**File Upload Guide**](FILE_UPLOAD_GUIDE.md) - File upload configuration
+- [**Storage Configuration**](STORAGE_CONFIGURATION.md) - S3, GCS, and local storage
+- [**Changelog**](CHANGELOG.md) - Version history and migration notes
 
 ---
 
@@ -543,7 +570,7 @@ end
      [
        {:ash, "~> 3.0"},
        {:ash_phoenix, "~> 2.0"},
-       {:ash_form_builder, "~> 0.2.0"},
+       {:ash_form_builder, "~> 0.2.3"},
        
        # Optional: For MishkaChelekom theme
        {:mishka_chelekom, "~> 0.0.8"}
