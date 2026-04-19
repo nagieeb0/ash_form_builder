@@ -29,15 +29,8 @@ defmodule AshFormBuilder.MixProject do
     """
     AshFormBuilder = AshPhoenix.Form + Auto UI + Smart Components + Themes.
 
-    A declarative form generation engine for Ash Framework that automatically
-    generates Phoenix LiveView forms from resource definitions. Features include
-    zero-config field inference, searchable/creatable combobox for relationships,
-    dynamic nested forms, and a pluggable theme system.
-
-    Why AshFormBuilder?
-    - AshPhoenix.Form provides the form state management
-    - AshFormBuilder adds: Auto UI generation + Smart Components + Themes
-    - Result: Complete forms with 1-3 lines of configuration
+    Declarative form engine for Ash Framework with zero-config field inference,
+    searchable/creatable combobox, nested forms, and pluggable theme system.
     """
   end
 
