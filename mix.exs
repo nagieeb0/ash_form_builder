@@ -4,24 +4,25 @@ defmodule AshFormBuilder.MixProject do
   def project do
     [
       app: :ash_form_builder,
-      version: "0.1.1",
+      version: "0.1.2",
       elixir: "~> 1.17",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      
+      docs: docs(),
+
       # Hex.pm Package Configuration
       description: """
       ⚠️  EXPERIMENTAL - Use at Your Own Risk ⚠️
-      
-      Auto-generates Phoenix LiveView forms from Ash Framework resources. 
+
+      Auto-generates Phoenix LiveView forms from Ash Framework resources.
       Features: auto-inference, searchable/creatable combobox, nested forms, themes.
-      
+
       EXPERIMENTAL: API may change. Use at your own risk.
       """,
-      
+
       package: package(),
-      
+
       # Docs
       name: "AshFormBuilder",
       source_url: "https://github.com/nagieeb0/ash_form_builder",
@@ -45,14 +46,14 @@ defmodule AshFormBuilder.MixProject do
       {:phoenix, "~> 1.7"},
       {:phoenix_html, "~> 4.0"},
       {:mishka_chelekom, "~> 0.0.8"},
-      
+
       # Dev dependencies
       {:ex_doc, "~> 0.31", only: :dev, runtime: false},
       {:ecto_sql, "~> 3.10", only: :test},
       {:postgrex, ">= 0.0.0", only: :test}
     ]
   end
-  
+
   defp docs do
     [
       main: "AshFormBuilder",
@@ -82,7 +83,7 @@ defmodule AshFormBuilder.MixProject do
       ]
     ]
   end
-  
+
   defp package do
     [
       licenses: ["MIT"],
