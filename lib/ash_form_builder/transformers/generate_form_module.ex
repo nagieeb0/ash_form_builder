@@ -85,7 +85,14 @@ defmodule AshFormBuilder.Transformers.GenerateFormModule do
       # Build schema from DSL entities (used by Domain Code Interfaces)
       schema = build_schema(entities, nested_map, required_preloads)
 
-      create_form_module(component_module, resource, action, nested_config, schema, required_preloads)
+      create_form_module(
+        component_module,
+        resource,
+        action,
+        nested_config,
+        schema,
+        required_preloads
+      )
     end
 
     {:ok, dsl_state}

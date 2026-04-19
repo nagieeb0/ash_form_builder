@@ -20,32 +20,32 @@ defmodule AshFormBuilder.FormComponentNestedPathTest do
 
     test "parses deeply nested paths (2 levels)" do
       assert FormComponent.parse_nested_path("subtasks[0].items") == [
-        {:subtasks, 0},
-        :items
-      ]
+               {:subtasks, 0},
+               :items
+             ]
     end
 
     test "parses deeply nested paths (3+ levels)" do
       assert FormComponent.parse_nested_path("subtasks[0].items[1].subitems") == [
-        {:subtasks, 0},
-        {:items, 1},
-        :subitems
-      ]
+               {:subtasks, 0},
+               {:items, 1},
+               :subitems
+             ]
 
       assert FormComponent.parse_nested_path("level1[0].level2[1].level3[2].field") == [
-        {:level1, 0},
-        {:level2, 1},
-        {:level3, 2},
-        :field
-      ]
+               {:level1, 0},
+               {:level2, 1},
+               {:level3, 2},
+               :field
+             ]
     end
 
     test "parses mixed indexed and non-indexed segments" do
       assert FormComponent.parse_nested_path("parent[0].child.grandchild[1]") == [
-        {:parent, 0},
-        :child,
-        {:grandchild, 1}
-      ]
+               {:parent, 0},
+               :child,
+               {:grandchild, 1}
+             ]
     end
 
     test "handles multiple digits in index" do

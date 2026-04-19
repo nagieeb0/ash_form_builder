@@ -114,16 +114,16 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
   defp render_file_upload(assigns) do
     upload_config = assigns.uploads[assigns.field.name]
     field_errors = extract_field_errors(assigns.form, assigns.field.name)
-    
+
     # Get existing file path from form value (for update forms)
     existing_path = get_existing_file_path(assigns.form, assigns.field.name)
-    
+
     # Determine if field supports multiple files
     upload_opts = Keyword.get(assigns.field.opts, :upload, [])
     max_entries = Keyword.get(upload_opts, :max_entries, 1)
     supports_multiple = max_entries > 1
-    
-    assigns = 
+
+    assigns =
       assigns
       |> Map.put(:upload_config, upload_config)
       |> Map.put(:field_errors, field_errors)
@@ -210,16 +210,16 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
   # Existing File Preview Component
   # ---------------------------------------------------------------------------
 
-  attr :path, :string, required: true
-  attr :field_name, :string, required: true
-  attr :form, :any, required: true
+  attr(:path, :string, required: true)
+  attr(:field_name, :string, required: true)
+  attr(:form, :any, required: true)
 
   defp existing_file_preview(assigns) do
     is_image = image_file?(assigns.path)
     filename = Path.basename(assigns.path)
     delete_flag = get_delete_flag(assigns.form, assigns.field_name)
-    
-    assigns = 
+
+    assigns =
       assigns
       |> Map.put(:is_image, is_image)
       |> Map.put(:filename, filename)
@@ -319,31 +319,37 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
 
   defp get_file_icon(path) when is_binary(path) do
     ext = path |> Path.extname() |> String.downcase()
-    
+
     cond do
       # PDF
       ext == ".pdf" ->
-        {:safe, "<svg class=\"h-8 w-8 text-red-400\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z\" /></svg>"}
-      
+        {:safe,
+         "<svg class=\"h-8 w-8 text-red-400\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z\" /></svg>"}
+
       # Word documents
       ext in [".doc", ".docx"] ->
-        {:safe, "<svg class=\"h-8 w-8 text-blue-600\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z\" /></svg>"}
-      
+        {:safe,
+         "<svg class=\"h-8 w-8 text-blue-600\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z\" /></svg>"}
+
       # Excel spreadsheets
       ext in [".xls", ".xlsx", ".csv"] ->
-        {:safe, "<svg class=\"h-8 w-8 text-green-600\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z\" /></svg>"}
-      
+        {:safe,
+         "<svg class=\"h-8 w-8 text-green-600\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z\" /></svg>"}
+
       # Images (shouldn't reach here, but fallback)
       ext in [".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".bmp"] ->
-        {:safe, "<svg class=\"h-8 w-8 text-purple-400\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z\" /></svg>"}
-      
+        {:safe,
+         "<svg class=\"h-8 w-8 text-purple-400\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z\" /></svg>"}
+
       # ZIP/Archive
       ext in [".zip", ".rar", ".7z", ".tar", ".gz"] ->
-        {:safe, "<svg class=\"h-8 w-8 text-yellow-600\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4\" /></svg>"}
-      
+        {:safe,
+         "<svg class=\"h-8 w-8 text-yellow-600\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4\" /></svg>"}
+
       # Default document icon
       true ->
-        {:safe, "<svg class=\"h-8 w-8 text-gray-400\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z\" /></svg>"}
+        {:safe,
+         "<svg class=\"h-8 w-8 text-gray-400\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z\" /></svg>"}
     end
   end
 
@@ -512,8 +518,7 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
 
   defp render_textarea(assigns) do
     assigns =
-      Map.put(assigns, :field_errors, extract_field_errors(assigns.form, assigns.field.name)
-      )
+      Map.put(assigns, :field_errors, extract_field_errors(assigns.form, assigns.field.name))
 
     ~H"""
     <.textarea_field
@@ -534,10 +539,9 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
 
   defp render_select(assigns) do
     assigns =
-      Map.put(assigns,
-        field_errors: extract_field_errors(assigns.form, assigns.field.name),
-        normalized_options: normalize_options(assigns.field.options)
-      )
+      assigns
+      |> Map.put(:field_errors, extract_field_errors(assigns.form, assigns.field.name))
+      |> Map.put(:normalized_options, normalize_options(assigns.field.options))
 
     ~H"""
     <.native_select
@@ -557,9 +561,7 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
 
   defp render_checkbox(assigns) do
     assigns =
-      Map.put(assigns,
-        field_errors: extract_field_errors(assigns.form, assigns.field.name)
-      )
+      Map.put(assigns, :field_errors, extract_field_errors(assigns.form, assigns.field.name))
 
     ~H"""
     <.checkbox_field
@@ -577,7 +579,7 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
 
   defp render_number(assigns) do
     assigns =
-      Map.put(assigns,
+      Map.put(assigns, 
         field_errors: extract_field_errors(assigns.form, assigns.field.name)
       )
 
@@ -599,7 +601,7 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
 
   defp render_email(assigns) do
     assigns =
-      Map.put(assigns,
+      Map.put(assigns, 
         field_errors: extract_field_errors(assigns.form, assigns.field.name)
       )
 
@@ -621,7 +623,7 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
 
   defp render_password(assigns) do
     assigns =
-      Map.put(assigns,
+      Map.put(assigns, 
         field_errors: extract_field_errors(assigns.form, assigns.field.name)
       )
 
@@ -643,7 +645,7 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
 
   defp render_date(assigns) do
     assigns =
-      Map.put(assigns,
+      Map.put(assigns, 
         field_errors: extract_field_errors(assigns.form, assigns.field.name)
       )
 
@@ -666,7 +668,7 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
 
   defp render_datetime(assigns) do
     assigns =
-      Map.put(assigns,
+      Map.put(assigns, 
         field_errors: extract_field_errors(assigns.form, assigns.field.name)
       )
 
@@ -689,7 +691,7 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
 
   defp render_url(assigns) do
     assigns =
-      Map.put(assigns,
+      Map.put(assigns, 
         field_errors: extract_field_errors(assigns.form, assigns.field.name)
       )
 
@@ -712,8 +714,9 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
   defp render_tel(assigns) do
     # MishkaChelekom may not have a specific tel field, use text_field with tel type
     assigns =
-      Map.put(assigns,
-        field_errors: extract_field_errors(assigns.form, assigns.field.name))
+      Map.put(assigns, 
+        field_errors: extract_field_errors(assigns.form, assigns.field.name)
+      )
 
     ~H"""
     <.text_field

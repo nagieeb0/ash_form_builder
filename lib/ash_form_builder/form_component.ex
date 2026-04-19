@@ -124,14 +124,14 @@ defmodule AshFormBuilder.FormComponent do
     # Get current delete state
     form = socket.assigns.form.source
     current_delete_value = Phoenix.HTML.Form.input_value(form, "#{field}_delete")
-    
+
     # Toggle the delete flag
     new_delete_value = if current_delete_value == "true", do: "false", else: "true"
-    
+
     # Update form with new delete flag value
     params = %{"#{field}_delete" => new_delete_value}
     form = AshPhoenix.Form.validate(form, params)
-    
+
     {:noreply, assign(socket, form: to_form(form))}
   end
 
@@ -275,7 +275,9 @@ defmodule AshFormBuilder.FormComponent do
         {:postpone, reason} ->
           require Logger
           Logger.error("File upload postponed: #{inspect(reason)}")
-        _ -> :ok
+
+        _ ->
+          :ok
       end)
 
       # Build params from successful uploads or deletion

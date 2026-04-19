@@ -7,12 +7,16 @@ defmodule AshFormBuilder.IntegrationTest do
 
   describe "Infer vs DSL merge" do
     test "Infer.infer_fields/3 uses Ash metadata only (no DSL labels)" do
-      inferred_specialties = Infer.infer_fields(Clinic, :create) |> Enum.find(&(&1.name == :specialties))
+      inferred_specialties =
+        Infer.infer_fields(Clinic, :create) |> Enum.find(&(&1.name == :specialties))
+
       assert inferred_specialties.label == "Specialties"
     end
 
     test "Info.effective_fields/1 applies DSL overrides on top of inference" do
-      effective_specialties = Info.effective_fields(Clinic) |> Enum.find(&(&1.name == :specialties))
+      effective_specialties =
+        Info.effective_fields(Clinic) |> Enum.find(&(&1.name == :specialties))
+
       assert effective_specialties.label == "Specialties (DSL)"
       assert Keyword.get(effective_specialties.opts, :search_event) == "search_specialties"
       assert Keyword.get(effective_specialties.opts, :debounce) == 150

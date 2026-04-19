@@ -235,7 +235,7 @@ defmodule AshFormBuilder.Test.Resources do
 
     relationships do
       many_to_many(:categories, Category) do
-        through BlogPostCategory
+        through(BlogPostCategory)
         source_attribute_on_join_resource(:blog_post_id)
         destination_attribute_on_join_resource(:category_id)
       end
@@ -277,7 +277,7 @@ defmodule AshFormBuilder.Test.Resources do
         label("Categories")
         placeholder("Search or create categories")
 
-        opts [
+        opts(
           creatable: true,
           create_action: :create,
           create_label: "Create \"",
@@ -285,7 +285,7 @@ defmodule AshFormBuilder.Test.Resources do
           debounce: 300,
           label_key: :name,
           value_key: :id
-        ]
+        )
       end
     end
   end

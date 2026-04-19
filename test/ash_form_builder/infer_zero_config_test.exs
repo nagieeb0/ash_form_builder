@@ -1,7 +1,7 @@
 defmodule AshFormBuilder.InferZeroConfigTest do
   @moduledoc """
   Comprehensive tests for AshFormBuilder.Infer zero-config inference engine.
-  
+
   Tests cover:
   - Complete Ash 3.0 type mapping
   - Smart constraint detection
@@ -52,7 +52,7 @@ defmodule AshFormBuilder.InferZeroConfigTest do
 
       # Timestamps should be excluded by default
       refute Enum.any?(fields_without_timestamps, &(&1.name in [:inserted_at, :updated_at]))
-      
+
       # Can be included with option
       # Note: Article doesn't have timestamps, but the option is tested
       assert is_list(fields_with_timestamps)
@@ -126,7 +126,7 @@ defmodule AshFormBuilder.InferZeroConfigTest do
 
       # many_to_many should be preloaded for updates
       assert :categories in schema_update.required_preloads
-      
+
       # Not needed for creates
       assert schema_create.required_preloads == []
     end
@@ -177,8 +177,8 @@ defmodule AshFormBuilder.InferZeroConfigTest do
       status_field = Enum.find(fields, &(&1.name == :status))
 
       assert Enum.all?(status_field.options, fn {label, value} ->
-        is_binary(label) and is_atom(value)
-      end)
+               is_binary(label) and is_atom(value)
+             end)
     end
   end
 end

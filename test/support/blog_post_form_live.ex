@@ -7,9 +7,7 @@ defmodule AshFormBuilder.Test.BlogPostFormLive do
   @impl true
   def mount(_params, _session, socket) do
     form =
-      BlogPost.Form.for_create(
-        authorize?: false
-      )
+      BlogPost.Form.for_create(authorize?: false)
 
     {:ok,
      assign(socket,
