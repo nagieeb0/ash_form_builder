@@ -1,26 +1,97 @@
 # =============================================================================
-# AshFormBuilder - Complete Integration Example
+# AshFormBuilder - Complete Integration Guide
 # =============================================================================
 #
-# This file demonstrates a real-world scenario:
-# - A Clinic resource with many-to-many relationship to Specialties
-# - Domain Code Interface configuration
-# - Phoenix LiveView using the Domain function and MishkaTheme
+# This comprehensive guide demonstrates how to integrate AshFormBuilder into
+# your Phoenix + Ash application with the "Invisible UI" philosophy:
+#
+#   "The developer defines the business logic in Ash, and the UI is a side effect."
+#
+# ## Table of Contents
+#
+# 1. Installation & Setup
+# 2. Resource Definition with Form DSL
+# 3. Domain Configuration (Code Interfaces)
+# 4. Phoenix LiveView Integration
+# 5. Creatable Combobox (Create on-the-fly)
+# 6. Theme Customization & Adapters
+# 7. Search Handling for Combobox
+# 8. Areas of Enhancement
 #
 # =============================================================================
 
-# -----------------------------------------------------------------------------
-# 1. THE ASH RESOURCE (Clinic with many-to-many Specialties)
-# -----------------------------------------------------------------------------
+# =============================================================================
+# 1. INSTALLATION & SETUP
+# =============================================================================
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 1.1 Add Dependencies (mix.exs)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# defp deps do
+#   [
+#     {:ash, "~> 3.0"},
+#     {:ash_phoenix, "~> 2.0"},
+#     {:phoenix_live_view, "~> 1.0"},
+#     {:phoenix, "~> 1.7"},
+#     {:ash_form_builder, path: "../ash_form_builder"},  # Or from hex when published
+#     
+#     # Optional: UI Component Libraries
+#     {:mishka_chelekom, "~> 0.0.8"},  # For MishkaTheme
+#     {:daisy_ui, "~> 4.0"}             # For Tailwind components (optional)
+#   ]
+# end
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 1.2 Configure Theme (config/config.exs)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# config :ash_form_builder, :theme, AshFormBuilder.Theme.MishkaTheme
+# # or
+# config :ash_form_builder, :theme, AshFormBuilder.Themes.Default
+# # or your custom theme
+# config :ash_form_builder, :theme, MyAppWeb.CustomTheme
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 1.3 Add Extension to Resource
+# ─────────────────────────────────────────────────────────────────────────────
+
+# In your Ash Resource, add the extension:
+#
+# use Ash.Resource,
+#   domain: MyApp.Healthcare,
+#   extensions: [AshFormBuilder]  # ← Add this
+
+# =============================================================================
+# 2. RESOURCE DEFINITION WITH FORM DSL
+# =============================================================================
 
 defmodule MyApp.Healthcare.Clinic do
   @moduledoc """
-  Clinic resource demonstrating AshFormBuilder with many-to-many relationship.
+  Clinic resource demonstrating AshFormBuilder with many-to-many relationships.
+  
+  ## Form Auto-Inference
+  
+  Fields are automatically inferred from the action's `accept` list:
+  
+  | Ash Type          | UI Type                 |
+  |-------------------|-------------------------|
+  | `:string`         | `:text_input`           |
+  | `:integer`        | `:number`               |
+  | `:boolean`        | `:checkbox`             |
+  | `:date`           | `:date`                 |
+  | `:datetime`       | `:datetime`             |
+  | `:enum`           | `:select`               |
+  | `many_to_many`    | `:multiselect_combobox` |
   """
 
   use Ash.Resource,
     domain: MyApp.Healthcare,
     extensions: [AshFormBuilder]
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Attributes
+  # ───────────────────────────────────────────────────────────────────────────
 
   attributes do
     uuid_primary_key :id
@@ -45,27 +116,50 @@ defmodule MyApp.Healthcare.Clinic do
     timestamps()
   end
 
+  # ───────────────────────────────────────────────────────────────────────────
+  # Relationships
+  # ───────────────────────────────────────────────────────────────────────────
+
   relationships do
-    # Many-to-many relationship with Specialty
-    # This will automatically render as :multiselect_combobox
+    # Many-to-many: Auto-rendered as :multiselect_combobox
     many_to_many :specialties, MyApp.Healthcare.Specialty do
       through MyApp.Healthcare.ClinicSpecialty
       source_attribute_on_join_resource :clinic_id
       destination_attribute_on_join_resource :specialty_id
     end
+
+    # Many-to-many with creatable support (create new items on-the-fly)
+    many_to_many :tags, MyApp.Healthcare.Tag do
+      through MyApp.Healthcare.ClinicTag
+      source_attribute_on_join_resource :clinic_id
+      destination_attribute_on_join_resource :tag_id
+    end
   end
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Actions
+  # ───────────────────────────────────────────────────────────────────────────
 
   actions do
     defaults [:create, :read, :update, :destroy]
 
     create :create do
-      accept [:name, :address, :phone, :email, :website, :is_active, :specialties]
+      accept [:name, :address, :phone, :email, :website, :is_active]
+      # Manage relationships separately
+      manage_relationship :specialties, :specialties, type: :append_and_remove
+      manage_relationship :tags, :tags, type: :append_and_remove
     end
 
     update :update do
-      accept [:name, :address, :phone, :email, :website, :is_active, :specialties]
+      accept [:name, :address, :phone, :email, :website, :is_active]
+      manage_relationship :specialties, :specialties, type: :append_and_remove
+      manage_relationship :tags, :tags, type: :append_and_remove
     end
   end
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Validations & Policies
+  # ───────────────────────────────────────────────────────────────────────────
 
   validations do
     validate present([:name, :address])
@@ -85,47 +179,60 @@ defmodule MyApp.Healthcare.Clinic do
   # ===========================================================================
   # ASH FORM BUILDER DSL - Declarative Form Configuration
   # ===========================================================================
+  #
+  # The `form` block defines how your form should render. Fields not declared
+  # here are auto-inferred from the action's `accept` list.
+  #
+  # ===========================================================================
 
   form do
+    # Required: Target action
     action :create
+
+    # Optional: Customize submit button
     submit_label "Create Clinic"
+
+    # Optional: CSS class for fields wrapper
     wrapper_class "space-y-6"
 
-    # Auto-inferred fields from action.accept:
-    # :name -> :text_input (required)
-    # :address -> :text_input (required)
-    # :phone -> :text_input
-    # :email -> :text_input
-    # :website -> :url
-    # :is_active -> :checkbox
-    # :specialties -> :multiselect_combobox (many_to_many!)
+    # Optional: HTML id for the <form> element
+    # form_id "clinic-create-form"
 
-    # -------------------------------------------------------------------------
-    # Explicit overrides for customization
-    # -------------------------------------------------------------------------
+    # ────────────────────────────────────────────────────────────────────────
+    # Field Overrides
+    # ────────────────────────────────────────────────────────────────────────
+    #
+    # Declare fields to override auto-inferred settings or add customization.
+    # Fields not declared here are still rendered with defaults.
+    # ────────────────────────────────────────────────────────────────────────
 
     field :name do
       label "Clinic Name"
       placeholder "e.g., Downtown Medical Center"
       required true
+      # Optional: CSS classes
+      # class "input-lg"
+      # wrapper_class "mb-6"
     end
 
     field :address do
       label "Street Address"
-      type :textarea
+      type :textarea  # Override inferred :text_input
       placeholder "Full address including city and zip"
-      rows 3
+      # Additional textarea options
+      # rows 4
       required true
     end
 
     field :phone do
       label "Contact Phone"
       placeholder "+1 555-123-4567"
+      # type :tel  # Could override to :tel for mobile keyboards
     end
 
     field :email do
       label "Email Address"
-      type :email
+      type :email  # Override to email input type
       placeholder "contact@clinic.com"
     end
 
@@ -141,9 +248,12 @@ defmodule MyApp.Healthcare.Clinic do
       hint "Uncheck to mark as temporarily closed"
     end
 
-    # -------------------------------------------------------------------------
-    # Many-to-Many: Searchable Combobox for Specialties
-    # -------------------------------------------------------------------------
+    # ────────────────────────────────────────────────────────────────────────
+    # Many-to-Many: Searchable Combobox (NON-CREATABLE)
+    # ────────────────────────────────────────────────────────────────────────
+    #
+    # Use when users should only select from existing records.
+    # ────────────────────────────────────────────────────────────────────────
 
     field :specialties do
       type :multiselect_combobox
@@ -151,29 +261,32 @@ defmodule MyApp.Healthcare.Clinic do
       placeholder "Search specialties..."
       required false
 
-      # MishkaChelekom combobox customization via opts
       opts [
-        # Event name for LiveView search handler
+        # LiveView search event handler
         search_event: "search_specialties",
 
-        # Debounce delay for search input (ms)
+        # Debounce delay in milliseconds
         debounce: 300,
 
-        # Field to use for option labels (from Specialty resource)
-        label_key: :name,
+        # Resource field mappings
+        label_key: :name,  # Field to display in dropdown
+        value_key: :id,    # Field to use as value
 
-        # Field to use for option values (from Specialty resource)
-        value_key: :id,
+        # Optional: Preload options (for small datasets)
+        # preload_options: [{"Cardiology", "uuid-1"}, {"Pediatrics", "uuid-2"}]
 
-        # Hint shown below the combobox
+        # Hint text
         hint: "Search and select all applicable specialties"
       ]
     end
 
-    # -------------------------------------------------------------------------
-    # Many-to-Many: Creatable Combobox for Tags
-    # Allows users to create new tags on-the-fly
-    # -------------------------------------------------------------------------
+    # ────────────────────────────────────────────────────────────────────────
+    # Many-to-Many: CREATABLE Combobox ⭐ NEW FEATURE
+    # ────────────────────────────────────────────────────────────────────────
+    #
+    # Use when users should be able to create new items on-the-fly.
+    # Example: Tags, categories, or labels that don't exist yet.
+    # ────────────────────────────────────────────────────────────────────────
 
     field :tags do
       type :multiselect_combobox
@@ -181,45 +294,71 @@ defmodule MyApp.Healthcare.Clinic do
       placeholder "Search or create tags..."
       required false
 
-      # Enable creatable functionality
       opts [
-        # Allow creating new items directly from the combobox
+        # ★ Enable creatable functionality
         creatable: true,
 
-        # Action to use for creating new items (default: :create)
+        # Action to call on destination resource (default: :create)
         create_action: :create,
 
-        # Custom label for the create button
-        # The \"\" will be replaced with the user's input
+        # Label template for create button
+        # The empty quotes "" will be replaced with user's input
         create_label: "Create \"\"",
 
-        # Event name for LiveView search handler
+        # LiveView search event handler
         search_event: "search_tags",
 
-        # Debounce delay for search input (ms)
+        # Debounce delay in milliseconds
         debounce: 300,
 
-        # Field to use for option labels (from Tag resource)
+        # Resource field mappings
         label_key: :name,
-
-        # Field to use for option values (from Tag resource)
         value_key: :id,
 
-        # Hint shown below the combobox
+        # Hint text
         hint: "Type to search existing tags or create a new one"
       ]
     end
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Nested Forms (has_many relationships)
+    # ────────────────────────────────────────────────────────────────────────
+    #
+    # For managing child records inline (e.g., clinic departments).
+    # ────────────────────────────────────────────────────────────────────────
+
+    # nested :departments do
+    #   label "Departments"
+    #   cardinality :many  # or :one
+    #   add_label "Add Department"
+    #   remove_label "Remove"
+    #   create_action :create
+    #   update_action :update
+    #
+    #   # Nested fields
+    #   field :name do
+    #     label "Department Name"
+    #     required true
+    #   end
+    #
+    #   field :budget do
+    #     label "Annual Budget"
+    #     type :number
+    #   end
+    # end
   end
 end
 
-# -----------------------------------------------------------------------------
-# SUPPORTING RESOURCES (Specialty and Join Resource)
-# -----------------------------------------------------------------------------
+# =============================================================================
+# 3. SUPPORTING RESOURCES
+# =============================================================================
 
 defmodule MyApp.Healthcare.Specialty do
   @moduledoc "Medical specialty (e.g., Cardiology, Pediatrics)"
 
-  use Ash.Resource, domain: MyApp.Healthcare
+  use Ash.Resource,
+    domain: MyApp.Healthcare,
+    data_layer: Ash.DataLayer.Ets  # Replace with your data layer
 
   attributes do
     uuid_primary_key :id
@@ -233,10 +372,28 @@ defmodule MyApp.Healthcare.Specialty do
   end
 end
 
-defmodule MyApp.Healthcare.ClinicSpecialty do
-  @moduledoc "Join resource for Clinic-Specialty many-to-many"
+defmodule MyApp.Healthcare.Tag do
+  @moduledoc "Tag for categorization (creatable on-the-fly)"
 
-  use Ash.Resource, domain: MyApp.Healthcare
+  use Ash.Resource,
+    domain: MyApp.Healthcare,
+    data_layer: Ash.DataLayer.Ets
+
+  attributes do
+    uuid_primary_key :id
+    attribute :name, :string, allow_nil?: false
+    attribute :color, :string, default: "gray"
+  end
+
+  actions do
+    defaults [:read, :create]
+  end
+end
+
+# Join resources for many-to-many relationships
+defmodule MyApp.Healthcare.ClinicSpecialty do
+  use Ash.Resource,
+    domain: MyApp.Healthcare
 
   attributes do
     uuid_primary_key :id
@@ -250,70 +407,122 @@ defmodule MyApp.Healthcare.ClinicSpecialty do
   end
 end
 
-# -----------------------------------------------------------------------------
-# 2. THE ASH DOMAIN - Code Interface Configuration
-# -----------------------------------------------------------------------------
+defmodule MyApp.Healthcare.ClinicTag do
+  use Ash.Resource,
+    domain: MyApp.Healthcare
+
+  attributes do
+    uuid_primary_key :id
+    attribute :clinic_id, :uuid, allow_nil?: false
+    attribute :tag_id, :uuid, allow_nil?: false
+  end
+
+  relationships do
+    belongs_to :clinic, MyApp.Healthcare.Clinic
+    belongs_to :tag, MyApp.Healthcare.Tag
+  end
+end
+
+# =============================================================================
+# 4. DOMAIN CONFIGURATION (CODE INTERFACES)
+# =============================================================================
+#
+# Domain Code Interfaces generate clean helper functions that integrate
+# seamlessly with AshFormBuilder. This is the recommended pattern.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# Why Use Code Interfaces?
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# • Zero boilerplate - No manual AshPhoenix.Form calls
+# • Type-safe - Generated functions with proper specs
+# • Policy-aware - Automatically includes actor context
+# • Consistent - Standardized form creation across your app
+#
+# ─────────────────────────────────────────────────────────────────────────────
 
 defmodule MyApp.Healthcare do
   @moduledoc """
   Healthcare domain with Code Interfaces for form generation.
-
-  The `define :form_to_<action>` pattern enables clean LiveView integration
-  by generating `form_to_create_clinic/2` and `form_to_update_clinic/2`
-  functions that work seamlessly with AshFormBuilder.
   """
 
   use Ash.Domain
 
   resources do
-    # Clinic resource with form-specific code interfaces
+    # ────────────────────────────────────────────────────────────────────────
+    # Clinic Resource with Form Code Interfaces
+    # ────────────────────────────────────────────────────────────────────────
+
     resource MyApp.Healthcare.Clinic do
-      # Standard CRUD
+      # Standard CRUD operations
       define :list_clinics, action: :read
       define :get_clinic, action: :read, get_by: [:id]
 
-      # Domain Code Interfaces for forms
-      # These auto-generate form_to_create_clinic/2 and form_to_update_clinic/2
+      # ★ Form Code Interfaces - Auto-generates helper functions
+      #
+      # Generates:
+      #   - MyApp.Healthcare.Clinic.Form.for_create/1
+      #   - MyApp.Healthcare.Clinic.Form.for_update/2
+      #
       define :form_to_create_clinic, action: :create
       define :form_to_update_clinic, action: :update
     end
 
-    # Specialty resource (for combobox search)
+    # ────────────────────────────────────────────────────────────────────────
+    # Supporting Resources
+    # ────────────────────────────────────────────────────────────────────────
+
     resource MyApp.Healthcare.Specialty do
       define :list_specialties, action: :read
       define :search_specialties, action: :read
     end
+
+    resource MyApp.Healthcare.Tag do
+      define :list_tags, action: :read
+      define :search_tags, action: :read
+    end
   end
 end
 
-# -----------------------------------------------------------------------------
-# 3. THE PHOENIX LIVEVIEW - Using Domain Function and MishkaTheme
-# -----------------------------------------------------------------------------
+# =============================================================================
+# 5. PHOENIX LIVEVIEW INTEGRATION
+# =============================================================================
+#
+# The LiveView is remarkably simple thanks to Domain Code Interfaces.
+# No manual AshPhoenix.Form setup required!
+#
+# ─────────────────────────────────────────────────────────────────────────────
 
 defmodule MyAppWeb.ClinicLive.Form do
   @moduledoc """
-  LiveView for creating/editing Clinics using AshFormBuilder.
-
-  This demonstrates:
+  LiveView for creating/editing Clinics.
+  
+  ## Key Features Demonstrated
+  
   - Zero manual AshPhoenix.Form calls
-  - Domain Code Interface usage (form_to_create_clinic)
-  - MishkaTheme with searchable combobox for many-to-many
-  - Automatic policy enforcement and validation
+  - Domain Code Interface usage
+  - MishkaTheme with searchable combobox
+  - Creatable combobox for tags
+  - Automatic policy enforcement
   """
 
   use MyAppWeb, :live_view
 
   alias MyApp.Healthcare
 
-  # ===========================================================================
-  # MOUNT - Creating the Form via Domain Code Interface
-  # ===========================================================================
+  # ───────────────────────────────────────────────────────────────────────────
+  # MOUNT - Form Creation via Domain Code Interface
+  # ───────────────────────────────────────────────────────────────────────────
 
   @impl true
   def mount(%{"id" => id} = _params, _session, socket) do
     # EDIT MODE: Update existing clinic
-    # The form helper automatically preloads :specialties for many_to_many
-    clinic = Healthcare.get_clinic!(id, load: [:specialties], actor: socket.assigns.current_user)
+    #
+    # Note: For update forms, many_to_many relationships need to be preloaded
+    # for the combobox to show current selections.
+    #
+    clinic = Healthcare.get_clinic!(id, load: [:specialties, :tags], actor: socket.assigns.current_user)
+    
     form = Healthcare.Clinic.Form.for_update(clinic, actor: socket.assigns.current_user)
 
     {:ok,
@@ -321,12 +530,16 @@ defmodule MyAppWeb.ClinicLive.Form do
      |> assign(:page_title, "Edit Clinic")
      |> assign(:form, form)
      |> assign(:mode, :edit)
-     |> assign(:specialty_options, load_specialty_options(clinic.specialties))}
+     |> assign(:specialty_options, load_options(clinic.specialties))
+     |> assign(:tag_options, load_options(clinic.tags))}
   end
 
   def mount(_params, _session, socket) do
     # CREATE MODE: New clinic
-    # Uses Domain Code Interface via the generated Form helper
+    #
+    # The Form.for_create/1 helper is generated by the Domain Code Interface
+    # and configured via the form DSL block in the resource.
+    #
     form = Healthcare.Clinic.Form.for_create(actor: socket.assigns.current_user)
 
     {:ok,
@@ -334,12 +547,13 @@ defmodule MyAppWeb.ClinicLive.Form do
      |> assign(:page_title, "New Clinic")
      |> assign(:form, form)
      |> assign(:mode, :create)
-     |> assign(:specialty_options, load_specialty_options([]))}
+     |> assign(:specialty_options, [])
+     |> assign(:tag_options, [])}
   end
 
-  # ===========================================================================
-  # RENDER - Using FormComponent with MishkaTheme
-  # ===========================================================================
+  # ───────────────────────────────────────────────────────────────────────────
+  # RENDER - Using FormComponent
+  # ───────────────────────────────────────────────────────────────────────────
 
   @impl true
   def render(assigns) do
@@ -349,23 +563,18 @@ defmodule MyAppWeb.ClinicLive.Form do
 
       <div class="card bg-base-100 shadow-xl">
         <div class="card-body">
-          <%!
-            # The FormComponent uses the configured theme (MishkaTheme)
-            # which renders:
-            # - Standard fields with MishkaChelekom components
-            # - :multiselect_combobox for specialties with search support
-          %>
+          <%!--
+            The FormComponent:
+            - Uses the configured theme (MishkaTheme)
+            - Renders all fields from the form DSL
+            - Handles validation errors automatically
+            - Manages nested forms
+          --%>
           <.live_component
             module={AshFormBuilder.FormComponent}
             id="clinic-form"
             resource={MyApp.Healthcare.Clinic}
             form={@form}
-            theme_opts={[
-              # Pass specialty options for the combobox
-              combobox_options: %{specialties: @specialty_options},
-              # Target for search events
-              target: @myself
-            ]}
           />
         </div>
       </div>
@@ -373,35 +582,56 @@ defmodule MyAppWeb.ClinicLive.Form do
     """
   end
 
-  # ===========================================================================
-  # SEARCH HANDLER - For Combobox Many-to-Many
-  # ===========================================================================
+  # ───────────────────────────────────────────────────────────────────────────
+  # SEARCH HANDLERS - For Combobox Many-to-Many
+  # ───────────────────────────────────────────────────────────────────────────
+  #
+  # These handlers respond to combobox search events and push
+  # updated options back to the client via LiveView events.
+  # ───────────────────────────────────────────────────────────────────────────
 
   @impl true
   def handle_event("search_specialties", %{"query" => query}, socket) do
-    # Search specialties based on user input
-    # This is triggered by the combobox search in MishkaTheme
     specialties =
       MyApp.Healthcare.Specialty
-      |> Ash.Query.filter(name_contains: query)
-      |> MyApp.Healthcare.read!(actor: socket.assigns.current_user)
+      |> Ash.Query.filter(contains(name: ^query))
+      |> Healthcare.read!(actor: socket.assigns.current_user)
 
     options = Enum.map(specialties, &{&1.name, &1.id})
 
-    # Push event to update combobox options dynamically
     {:noreply, push_event(socket, "update_combobox_options", %{
       field: "specialties",
       options: options
     })}
   end
 
-  # ===========================================================================
-  # SUCCESS HANDLER
-  # ===========================================================================
+  @impl true
+  def handle_event("search_tags", %{"query" => query}, socket) do
+    # For creatable combobox, search existing tags
+    # Users can still create new ones via the create button
+    tags =
+      MyApp.Healthcare.Tag
+      |> Ash.Query.filter(contains(name: ^query))
+      |> Healthcare.read!(actor: socket.assigns.current_user)
+
+    options = Enum.map(tags, &{&1.name, &1.id})
+
+    {:noreply, push_event(socket, "update_combobox_options", %{
+      field: "tags",
+      options: options
+    })}
+  end
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # SUCCESS HANDLER - Form Submission
+  # ───────────────────────────────────────────────────────────────────────────
 
   @impl true
   def handle_info({:form_submitted, MyApp.Healthcare.Clinic, clinic}, socket) do
-    message = if socket.assigns.mode == :create, do: "Clinic created!", else: "Clinic updated!"
+    message = case socket.assigns.mode do
+      :create -> "Clinic created successfully!"
+      :update -> "Clinic updated successfully!"
+    end
 
     {:noreply,
      socket
@@ -409,74 +639,318 @@ defmodule MyAppWeb.ClinicLive.Form do
      |> push_navigate(to: ~p"/clinics/#{clinic.id}")}
   end
 
-  # ===========================================================================
+  # ───────────────────────────────────────────────────────────────────────────
   # PRIVATE HELPERS
-  # ===========================================================================
+  # ───────────────────────────────────────────────────────────────────────────
 
-  defp load_specialty_options(specialties) do
-    # Preload specialty options for the combobox
-    # Can be called with existing specialties (edit) or empty list (create)
-    Enum.map(specialties, &{&1.name, &1.id})
+  defp load_options(records) do
+    Enum.map(records, &{&1.name, &1.id})
   end
 end
 
-# -----------------------------------------------------------------------------
-# 4. CONFIGURATION
-# -----------------------------------------------------------------------------
+# =============================================================================
+# 6. THEME CUSTOMIZATION & ADAPTERS
+# =============================================================================
+#
+# AshFormBuilder supports theming via the `AshFormBuilder.Theme` behaviour.
+# You can use built-in themes or create custom adapters.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# 6.1 Built-in Themes
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# • AshFormBuilder.Themes.Default - Semantic HTML with minimal styling
+# • AshFormBuilder.Theme.MishkaTheme - MishkaChelekom component integration
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# 6.2 Creating a Custom Theme
+# ─────────────────────────────────────────────────────────────────────────────
 
-# In config/config.exs:
-#
-#   config :ash_form_builder, :theme, AshFormBuilder.Theme.MishkaTheme
-#
-# In lib/my_app_web.ex (your web module):
-#
-#   def live_view do
-#     quote do
-#       use Phoenix.LiveView,
-#         layout: {MyAppWeb.Layouts, :app}
-#
-#       # Import MishkaChelekom components for your own templates
-#       import MishkaChelekom.Components.Combobox
-#       import MishkaChelekom.Components.TextField
-#       # ... etc
-#     end
-#   end
+defmodule MyAppWeb.CustomTheme do
+  @moduledoc """
+  Custom theme example using Tailwind CSS directly.
+  
+  To use:
+  1. Create this module in your app
+  2. Implement render_field/2 for each field type
+  3. Configure: config :ash_form_builder, :theme, MyAppWeb.CustomTheme
+  """
 
-# -----------------------------------------------------------------------------
-# 5. VALIDATION & POLICY ASSURANCE EXPLANATION
-# -----------------------------------------------------------------------------
+  @behaviour AshFormBuilder.Theme
+  use Phoenix.Component
+
+  @impl AshFormBuilder.Theme
+  def render_field(assigns, opts) do
+    # Add your custom assigns
+    assigns = Map.put(assigns, :custom_opts, opts)
+
+    case assigns.field.type do
+      :text_input -> render_text_input(assigns)
+      :textarea -> render_textarea(assigns)
+      :select -> render_select(assigns)
+      :multiselect_combobox -> render_combobox(assigns)
+      :checkbox -> render_checkbox(assigns)
+      :number -> render_number(assigns)
+      :email -> render_email(assigns)
+      :password -> render_password(assigns)
+      :date -> render_date(assigns)
+      :datetime -> render_datetime(assigns)
+      :url -> render_url(assigns)
+      :tel -> render_tel(assigns)
+      :hidden -> render_hidden(assigns)
+      _ -> render_text_input(assigns)
+    end
+  end
+
+  @impl AshFormBuilder.Theme
+  def render_nested(_assigns) do
+    # Return nil to use default nested form rendering
+    nil
+  end
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Example: Custom Text Input with Tailwind
+  # ───────────────────────────────────────────────────────────────────────────
+
+  defp render_text_input(assigns) do
+    ~H"""
+    <div class={["mb-4", @field.wrapper_class]}>
+      <label :if={@field.label} class="block text-sm font-medium text-gray-700 mb-1">
+        {@field.label}
+        <span :if={@field.required} class="text-red-500 ml-1">*</span>
+      </label>
+      <input
+        type="text"
+        id={Phoenix.HTML.Form.input_id(@form, @field.name)}
+        name={Phoenix.HTML.Form.input_name(@form, @field.name)}
+        value={Phoenix.HTML.Form.input_value(@form, @field.name)}
+        placeholder={@field.placeholder}
+        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+      <p :if={@field.hint} class="mt-1 text-sm text-gray-500">{@field.hint}</p>
+      <.errors :for={err <- (@form[@field.name] || %{errors: []}).errors} message={elem(err, 0)} />
+    </div>
+    """
+  end
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Example: Custom Combobox with Creatable Support
+  # ───────────────────────────────────────────────────────────────────────────
+
+  defp render_combobox(assigns) do
+    opts = assigns.field.opts || []
+    creatable? = Keyword.get(opts, :creatable, false)
+    
+    assigns = assign(assigns, :creatable?, creatable?)
+
+    ~H"""
+    <div class={["mb-4", @field.wrapper_class]}>
+      <label :if={@field.label} class="block text-sm font-medium text-gray-700 mb-1">
+        {@field.label}
+      </label>
+      
+      <%!-- Your combobox implementation here --%>
+      <div class="relative">
+        <input
+          type="text"
+          id={Phoenix.HTML.Form.input_id(@form, @field.name)}
+          name={Phoenix.HTML.Form.input_name(@form, @field.name)}
+          placeholder={@field.placeholder}
+          class="w-full px-3 py-2 border border-gray-300 rounded-md"
+        />
+        
+        <%!-- Creatable button (if enabled) --%>
+        <button
+          :if={@creatable?}
+          type="button"
+          phx-click="create_combobox_item"
+          phx-value-field={@field.name}
+          class="absolute right-2 top-2 text-sm text-blue-600 hover:text-blue-800"
+        >
+          + Create New
+        </button>
+      </div>
+      
+      <p :if={@field.hint} class="mt-1 text-sm text-gray-500">{@field.hint}</p>
+    </div>
+    """
+  end
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Error Component
+  # ───────────────────────────────────────────────────────────────────────────
+
+  attr(:message, :string, required: true)
+
+  defp errors(assigns) do
+    ~H"""
+    <p class="mt-1 text-sm text-red-600">{@message}</p>
+    """
+  end
+
+  # Add more render_* functions for other field types...
+end
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 6.3 Theme Adapter Pattern
+# ─────────────────────────────────────────────────────────────────────────────
 #
-# When using the Domain Code Interface pattern (form_to_create_clinic/2),
-# ALL Ash Framework features are automatically respected:
+# For large applications, you might want to create theme adapters that
+# compose multiple UI libraries or provide consistent design tokens.
 #
-# 1. POLICY ENFORCEMENT
-#    - The 'authorize_if actor_present()' policy in Clinic is checked
-#    - Unauthorized users receive automatic error messages
-#    - Happens BEFORE form processing begins
+# Example structure:
 #
-# 2. VALIDATIONS
-#    - 'validate present([:name, :address])' runs on every submit
-#    - 'validate string_length(:name, ...)' enforces constraints
-#    - Errors render through MishkaTheme's error styling
+# lib/my_app_web/form_builder/
+# ├── theme.ex              # Base theme behaviour
+# ├── default_theme.ex      # Default implementation
+# ├── mishka_theme.ex       # MishkaChelekom adapter
+# ├── daisy_theme.ex        # DaisyUI/Tailwind adapter
+# └── custom_theme.ex       # Your app's custom theme
 #
-# 3. ATOMIC UPDATES
-#    - The 'timestamps()' change updates :inserted_at/:updated_at
-#    - All changes execute within a database transaction
-#    - Rollback on any failure
+# ─────────────────────────────────────────────────────────────────────────────
+
+# =============================================================================
+# 7. AREAS OF ENHANCEMENT
+# =============================================================================
 #
-# 4. PREPARATIONS
-#    - Any 'prepare' steps in your action run before form processing
-#    - Allows data enrichment or transformation
+# The following enhancements could improve the ash_form_builder library:
 #
-# 5. ERROR RENDERING
-#    - Ash form errors are in 'form[field].errors'
-#    - MishkaTheme passes these to components via 'errors={...}' prop
-#    - Components render errors using MishkaChelekom styling
+# ─────────────────────────────────────────────────────────────────────────────
+# 7.1 Creatable Combobox Improvements
+# ─────────────────────────────────────────────────────────────────────────────
 #
-# The UI Adapter (MishkaTheme) does NOT need to know about Ash policies
-# or validations - it simply renders standard Ash form errors that are
-# automatically populated by the Domain Code Interface.
+# • Better value extraction: Currently uses regex to extract value from
+#   create_label. Could pass the raw input value directly from the combobox.
+#
+# • Loading states: Show loading indicator while creating new items.
+#
+# • Error handling: Display inline errors when creation fails (e.g., duplicate
+#   name validation).
+#
+# • Confirmation dialog: Optional confirmation before creating new items.
+#
+# • Bulk create: Allow creating multiple new items at once.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# 7.2 Search Optimization
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# • Server-side pagination: For large datasets, paginate search results.
+#
+# • Caching: Cache frequently searched results to reduce database queries.
+#
+# • Debounce configuration: Make debounce configurable per-field.
+#
+# • Minimum search length: Configure minimum characters before searching.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# 7.3 Nested Form Enhancements
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# • Sortable lists: Drag-and-drop reordering for has_many relationships.
+#
+# • Collapsible sections: Collapse/expand nested form sections.
+#
+# • Conditional rendering: Show/hide nested forms based on parent field values.
+#
+# • Deep nesting: Support for nested forms within nested forms.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# 7.4 Validation & UX
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# • Inline validation: Real-time validation as users type.
+#
+# • Field-level permissions: Hide/disable fields based on user permissions.
+#
+# • Conditional fields: Show/hide fields based on other field values.
+#
+# • Multi-step forms: Wizard-style forms with progress indicators.
+#
+# • Form drafts: Auto-save form state to localStorage or database.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# 7.5 Internationalization (i18n)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# • Translatable labels: Support for GetText or similar i18n libraries.
+#
+# • Locale-aware formatting: Date, number, and currency formatting.
+#
+# • RTL support: Right-to-left language support.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# 7.6 Performance
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# • Lazy loading: Load combobox options on demand.
+#
+# • Virtual scrolling: For large option lists in combobox.
+#
+# • Form optimization: Reduce LiveView payload size for large forms.
 #
 # =============================================================================
-# END OF EXAMPLE
+# 8. TESTING YOUR FORMS
+# =============================================================================
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# 8.1 Unit Tests for Form Schema
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# test "clinic form has correct fields" do
+#   schema = AshFormBuilder.Infer.infer_schema(MyApp.Healthcare.Clinic, :create)
+#   
+#   assert Enum.any?(schema.fields, &(&1.name == :name))
+#   assert Enum.any?(schema.fields, &(&1.type == :multiselect_combobox))
+# end
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# 8.2 Component Tests
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# test "form submission creates clinic", %{conn: conn} do
+#   {:ok, view, _html} = live_isolated(conn, MyAppWeb.ClinicLive.Form)
+#   
+#   html =
+#     view
+#     |> form("#clinic-form", clinic: %{name: "Test Clinic"})
+#     |> render_submit()
+#   
+#   assert html =~ "Clinic created successfully!"
+# end
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# 8.3 Creatable Combobox Tests
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# test "creating new tag from combobox", %{conn: conn} do
+#   {:ok, view, _html} = live_isolated(conn, MyAppWeb.ClinicLive.Form)
+#   
+#   # Trigger create event
+#   {:noreply, _updated_socket} =
+#     AshFormBuilder.FormComponent.handle_event(
+#       "create_combobox_item",
+#       %{
+#         "field" => "tags",
+#         "resource" => "Elixir.MyApp.Healthcare.Tag",
+#         "action" => "create",
+#         "creatable_value" => "New Tag"
+#       },
+#       socket
+#     )
+#   
+#   # Verify tag was created
+#   assert %MyApp.Healthcare.Tag{name: "New Tag"} = 
+#            Ash.read_one!(MyApp.Healthcare.Tag, name: "New Tag")
+# end
+#
+# =============================================================================
+# END OF GUIDE
+# =============================================================================
+#
+# For more information:
+# • Ash Framework: https://hexdocs.pm/ash
+# • Phoenix LiveView: https://hexdocs.pm/phoenix_live_view
+# • MishkaChelekom: https://github.com/mishkacelekom/mishka_chelekom
+#
 # =============================================================================
