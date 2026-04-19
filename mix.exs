@@ -13,22 +13,11 @@ defmodule AshFormBuilder.MixProject do
       # Hex.pm Package Configuration
       description: """
       ⚠️  EXPERIMENTAL - Use at Your Own Risk ⚠️
-
-      AshFormBuilder is a Spark DSL extension for Ash Framework that automatically
-      generates Phoenix LiveView forms from resource definitions with "Invisible UI"
-      philosophy.
-
-      Features:
-      • Auto-inference engine for form fields from Ash actions
-      • Many-to-many relationship support with searchable combobox
-      • ✨ NEW: Creatable combobox - create related records on-the-fly
-      • has_many nested forms with dynamic add/remove
-      • Theme system (Default + MishkaChelekom adapters)
-      • Domain Code Interface integration
-      • Zero-boilerplate form generation
-
-      This package is EXPERIMENTAL and under active development.
-      API may change without notice. Use in production at your own risk.
+      
+      Auto-generates Phoenix LiveView forms from Ash Framework resources. 
+      Features: auto-inference, searchable/creatable combobox, nested forms, themes.
+      
+      EXPERIMENTAL: API may change. Use at your own risk.
       """,
 
       package: package(),
