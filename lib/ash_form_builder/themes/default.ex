@@ -27,6 +27,7 @@ defmodule AshFormBuilder.Themes.Default do
     case assigns.field.type do
       :hidden -> render_hidden_field(assigns)
       :multiselect_combobox -> render_multiselect_combobox(assigns)
+      :file_upload -> render_file_upload(assigns)
       _ -> render_standard_field(assigns)
     end
   end
@@ -210,6 +211,56 @@ defmodule AshFormBuilder.Themes.Default do
     />
     """
   end
+
+  # ---------------------------------------------------------------------------
+  # File Upload
+  # ---------------------------------------------------------------------------
+
+  defp render_file_upload(assigns) do
+    upload_config = assigns.uploads[assigns.field.name]
+    assigns = Map.put(assigns, :upload_config, upload_config)
+
+    ~H"""
+    <div class={["form-group", @field.wrapper_class]}>
+      <label :if={@field.label} class="form-label">
+        {@field.label}
+        <span :if={@field.required} aria-hidden="true" class="required-mark"> *</span>
+      </label>
+
+      <div :if={@upload_config} class="file-upload-zone">
+        <.live_file_input upload={@upload_config} />
+
+        <%= for entry <- @upload_config.entries do %>
+          <div class="upload-entry">
+            <.live_img_preview entry={entry} class="upload-preview" />
+            <div class="upload-progress">
+              <div class="upload-progress-bar" style={"width: #{entry.progress}%"}></div>
+              <span class="upload-progress-text">{entry.progress}%</span>
+            </div>
+            <%= for {ref, err} <- @upload_config.errors, ref == entry.ref do %>
+              <p class="form-error">{upload_error_message(err)}</p>
+            <% end %>
+          </div>
+        <% end %>
+
+        <%= for {_ref, err} <- @upload_config.errors do %>
+          <p class="form-error">{upload_error_message(err)}</p>
+        <% end %>
+      </div>
+
+      <div :if={is_nil(@upload_config)} class="file-upload-unavailable">
+        <p class="form-hint">File upload not configured</p>
+      </div>
+
+      <p :if={@field.hint} class="form-hint">{@field.hint}</p>
+    </div>
+    """
+  end
+
+  defp upload_error_message(:too_large), do: "File is too large"
+  defp upload_error_message(:too_many_files), do: "Too many files selected"
+  defp upload_error_message(:not_accepted), do: "File type not accepted"
+  defp upload_error_message(err), do: "Upload error: #{err}"
 
   # ---------------------------------------------------------------------------
   # Helpers

@@ -35,7 +35,8 @@ defmodule AshFormBuilder.Dsl do
              :datetime,
              :hidden,
              :url,
-             :tel
+             :tel,
+             :file_upload
            ]},
         default: :text_input,
         doc: """
@@ -44,6 +45,8 @@ defmodule AshFormBuilder.Dsl do
         Special types:
         * `:multiselect_combobox` - For many_to_many relationships. Uses a searchable
           multi-select combobox (MishkaChelekom). Supports `opts` for customization.
+        * `:file_upload` - Phoenix LiveView file upload. Configure via `opts`:
+          `[upload: [cloud: MyApp.Cloud, max_entries: 1, max_file_size: 10_000_000, accept: ~w(.jpg .png)]]`
         """
       ],
       placeholder: [
@@ -183,21 +186,25 @@ defmodule AshFormBuilder.Dsl do
       ignore_fields: [
         type: {:list, :atom},
         default: [:id, :inserted_at, :updated_at],
-        doc: "Fields to exclude from auto-inference. Use this to hide fields without writing full field blocks."
+        doc:
+          "Fields to exclude from auto-inference. Use this to hide fields without writing full field blocks."
       ],
       field_order: [
         type: {:list, :atom},
-        doc: "Custom ordering for fields. Fields listed first appear first. Fields not listed appear after in default order."
+        doc:
+          "Custom ordering for fields. Fields listed first appear first. Fields not listed appear after in default order."
       ],
       include_timestamps: [
         type: :boolean,
         default: false,
-        doc: "Whether to include :inserted_at and :updated_at fields. Set to true if you need timestamp inputs."
+        doc:
+          "Whether to include :inserted_at and :updated_at fields. Set to true if you need timestamp inputs."
       ],
       creatable: [
         type: :boolean,
         default: false,
-        doc: "Enable creatable combobox for all many_to_many relationships. Individual fields can override this."
+        doc:
+          "Enable creatable combobox for all many_to_many relationships. Individual fields can override this."
       ],
       create_action: [
         type: :atom,

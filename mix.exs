@@ -50,6 +50,7 @@ defmodule AshFormBuilder.MixProject do
       {:phoenix_live_view, "~> 1.0"},
       {:phoenix, "~> 1.7"},
       {:phoenix_html, "~> 4.0"},
+      {:buckets, "~> 1.1"},
 
       # Optional: UI Component Libraries
       {:mishka_chelekom, "~> 0.0.8", optional: true},
@@ -58,7 +59,8 @@ defmodule AshFormBuilder.MixProject do
       {:ex_doc, "~> 0.31", only: :dev, runtime: false},
       {:ecto_sql, "~> 3.10", only: :test},
       {:postgrex, ">= 0.0.0", only: :test},
-      {:ash_postgres, "~> 2.0", only: :test}
+      {:ash_postgres, "~> 2.0", only: :test},
+      {:lazy_html, ">= 0.1.0", only: :test}
     ]
   end
 
@@ -72,7 +74,6 @@ defmodule AshFormBuilder.MixProject do
       extras: [
         "README.md",
         "CHANGELOG.md"
-
       ],
       groups_for_extras: [
         "": ["README.md", "CHANGELOG.md"]
@@ -89,12 +90,12 @@ defmodule AshFormBuilder.MixProject do
           AshFormBuilder.Field,
           AshFormBuilder.NestedForm
         ],
-        "Themes": [
+        Themes: [
           AshFormBuilder.Theme,
           AshFormBuilder.Theme.MishkaTheme,
           AshFormBuilder.Themes.Default
         ],
-        "Internal": [
+        Internal: [
           AshFormBuilder.Transformers.GenerateFormModule,
           AshFormBuilder.Transformers.ResolveNestedResources
         ]

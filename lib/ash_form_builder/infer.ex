@@ -120,7 +120,8 @@ defmodule AshFormBuilder.Infer do
     :email => :email,
     Ash.Type.Phone => :tel,
     :phone => :tel,
-    Ash.Type.Atom => :text_input,  # Overridden by constraints
+    # Overridden by constraints
+    Ash.Type.Atom => :text_input,
     :atom => :text_input,
     Ash.Type.Enum => :select,
     :enum => :select,
@@ -143,7 +144,10 @@ defmodule AshFormBuilder.Infer do
 
     # Color
     Ash.Type.Color => :text_input,
-    :color => :text_input
+    :color => :text_input,
+
+    # File (maps to LiveView file upload)
+    :file => :file_upload
   }
 
   # ───────────────────────────────────────────────────────────────────────────
@@ -316,7 +320,7 @@ defmodule AshFormBuilder.Infer do
   # ───────────────────────────────────────────────────────────────────────────
 
   defp validate_opts(opts) do
-    Keyword.validate!(opts, [
+    Keyword.validate!(opts,
       ignore_fields: [:id, :inserted_at, :updated_at, :deleted_at],
       include_timestamps: false,
       many_to_many_as: :multiselect_combobox,
@@ -329,7 +333,7 @@ defmodule AshFormBuilder.Infer do
       debounce: 300,
       label_key: :name,
       value_key: :id
-    ])
+    )
   end
 
   defp process_accept_list(resource, accept, opts) do

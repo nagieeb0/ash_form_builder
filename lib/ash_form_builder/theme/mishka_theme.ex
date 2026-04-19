@@ -86,6 +86,7 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
     case assigns.field.type do
       :hidden -> render_hidden_field(assigns)
       :multiselect_combobox -> render_multiselect_combobox(assigns)
+      :file_upload -> render_file_upload(assigns)
       :textarea -> render_textarea(assigns)
       :select -> render_select(assigns)
       :checkbox -> render_checkbox(assigns)
@@ -105,6 +106,74 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
     # Return nil to use default nested form rendering
     nil
   end
+
+  # ---------------------------------------------------------------------------
+  # File Upload — Phoenix live_file_input with Tailwind/Mishka styling
+  # ---------------------------------------------------------------------------
+
+  defp render_file_upload(assigns) do
+    upload_config = assigns.uploads[assigns.field.name]
+    field_errors = extract_field_errors(assigns.form, assigns.field.name)
+    assigns = Map.merge(assigns, %{upload_config: upload_config, field_errors: field_errors})
+
+    ~H"""
+    <div class={["mb-4", @field.wrapper_class]}>
+      <label :if={@field.label} class="block text-sm font-medium mb-1">
+        {@field.label}
+        <span :if={@field.required} class="text-red-500 ml-1" aria-hidden="true">*</span>
+      </label>
+
+      <div :if={@upload_config} class="border-2 border-dashed border-gray-300 rounded-lg p-4">
+        <.live_file_input
+          upload={@upload_config}
+          class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+        />
+
+        <%= for entry <- @upload_config.entries do %>
+          <div class="mt-3 flex items-start gap-3">
+            <.live_img_preview
+              entry={entry}
+              class="h-16 w-16 rounded object-cover border border-gray-200"
+            />
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium text-gray-700 truncate">{entry.client_name}</p>
+              <div class="mt-1 h-2 w-full rounded-full bg-gray-200">
+                <div
+                  class="h-2 rounded-full bg-primary transition-all"
+                  style={"width: #{entry.progress}%"}
+                >
+                </div>
+              </div>
+              <p class="text-xs text-gray-500 mt-1">{entry.progress}%</p>
+              <%= for {ref, err} <- @upload_config.errors, ref == entry.ref do %>
+                <p class="text-xs text-red-600 mt-1">{upload_error_message(err)}</p>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+
+        <%= for {_ref, err} <- @upload_config.errors do %>
+          <p class="text-sm text-red-600 mt-2">{upload_error_message(err)}</p>
+        <% end %>
+      </div>
+
+      <div :if={is_nil(@upload_config)} class="border rounded-lg p-4 text-sm text-gray-400">
+        File upload not configured for this field
+      </div>
+
+      <p :if={@field.hint} class="text-xs text-base-content/60 mt-1">{@field.hint}</p>
+
+      <%= for err <- @field_errors do %>
+        <p class="text-xs text-red-600 mt-1">{elem(err, 0)}</p>
+      <% end %>
+    </div>
+    """
+  end
+
+  defp upload_error_message(:too_large), do: "File is too large"
+  defp upload_error_message(:too_many_files), do: "Too many files selected"
+  defp upload_error_message(:not_accepted), do: "File type not accepted"
+  defp upload_error_message(err), do: "Upload error: #{err}"
 
   # ---------------------------------------------------------------------------
   # Hidden field — no wrapper, no label

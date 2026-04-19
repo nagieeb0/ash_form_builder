@@ -33,6 +33,19 @@ defmodule AshFormBuilder.FormComponent do
   | `:id`         | string             | yes      | LiveComponent id |
   | `:on_submit`  | `(result -> any)`  | no       | Callback instead of `send/2` |
   | `:submit_label`| string            | no       | Override the DSL submit label |
+
+  ## File Upload Support
+
+  Fields declared with `type: :file_upload` are automatically wired to Phoenix
+  LiveView's upload lifecycle. Configure uploads via `opts`:
+
+      field :avatar do
+        type :file_upload
+        opts [upload: [cloud: MyApp.Cloud, max_entries: 1, accept: ~w(.jpg .png)]]
+      end
+
+  On submit, entries are consumed and stored via the configured `Buckets.Cloud`
+  module before the Ash action is called.
   """
 
   use Phoenix.LiveComponent
@@ -56,7 +69,8 @@ defmodule AshFormBuilder.FormComponent do
        wrapper_class: wrapper_class,
        form_id: form_id
      )
-     |> assign_new(:on_submit, fn -> nil end)}
+     |> assign_new(:on_submit, fn -> nil end)
+     |> allow_file_uploads(entities)}
   end
 
   @impl Phoenix.LiveComponent
@@ -76,6 +90,7 @@ defmodule AshFormBuilder.FormComponent do
           target={@myself}
           wrapper_class={@wrapper_class}
           theme_opts={[target: @myself]}
+          uploads={Map.get(assigns, :uploads, %{})}
         />
 
         <div class="form-actions">
@@ -102,7 +117,6 @@ defmodule AshFormBuilder.FormComponent do
 
   @impl Phoenix.LiveComponent
   def handle_event("add_form", %{"path" => path}, socket) do
-    # Support deeply nested paths like "subtasks[0].items[1]"
     parsed_path = parse_nested_path(path)
     form = AshPhoenix.Form.add_form(socket.assigns.form.source, parsed_path)
     {:noreply, assign(socket, form: to_form(form))}
@@ -110,7 +124,6 @@ defmodule AshFormBuilder.FormComponent do
 
   @impl Phoenix.LiveComponent
   def handle_event("remove_form", %{"path" => path}, socket) do
-    # Support deeply nested paths
     parsed_path = parse_nested_path(path)
     form = AshPhoenix.Form.remove_form(socket.assigns.form.source, parsed_path)
     {:noreply, assign(socket, form: to_form(form))}
@@ -118,10 +131,9 @@ defmodule AshFormBuilder.FormComponent do
 
   @impl Phoenix.LiveComponent
   def handle_event("remove_combobox_item", %{"field" => field, "item" => item}, socket) do
-    # Remove a selected item from a combobox field
     form = socket.assigns.form.source
-    current_values = AshPhoenix.Form.value(form, String.to_atom(field)) || []
-    new_values = Enum.reject(current_values, &to_string(&1) == item)
+    current_values = AshPhoenix.Form.value(form, String.to_existing_atom(field)) || []
+    new_values = Enum.reject(current_values, &(to_string(&1) == item))
     form = AshPhoenix.Form.validate(form, %{field => new_values})
     {:noreply, assign(socket, form: to_form(form))}
   end
@@ -129,21 +141,22 @@ defmodule AshFormBuilder.FormComponent do
   @impl Phoenix.LiveComponent
   def handle_event(
         "create_combobox_item",
-        %{"field" => field, "resource" => resource_mod, "action" => action, "creatable_value" => creatable_value},
+        %{
+          "field" => field,
+          "resource" => resource_mod,
+          "action" => action,
+          "creatable_value" => creatable_value
+        },
         socket
       ) do
-    # Create a new record in the destination resource and add it to the selection
-    resource_mod = String.to_atom(resource_mod)
-    field = String.to_atom(field)
-    action = String.to_atom(action)
+    resource_mod = String.to_existing_atom(resource_mod)
+    field = String.to_existing_atom(field)
+    action = String.to_existing_atom(action)
 
-    # Extract value from creatable label (e.g., "Create \"New Tag\"" → "New Tag")
     new_item_value = extract_creatable_value(creatable_value)
 
-    # Create the new record using Ash
     case create_new_item(resource_mod, action, new_item_value, socket.assigns) do
       {:ok, new_record} ->
-        # Add the new record to the current selection
         form = socket.assigns.form.source
         current_values = AshPhoenix.Form.value(form, field) || []
         new_id = Map.get(new_record, :id)
@@ -152,7 +165,6 @@ defmodule AshFormBuilder.FormComponent do
         {:noreply, assign(socket, form: to_form(form))}
 
       {:error, changeset_or_error} ->
-        # Log the error and return the form unchanged
         require Logger
         Logger.error("Failed to create combobox item: #{inspect(changeset_or_error)}")
         {:noreply, put_flash(socket, :error, "Could not create item: validation failed")}
@@ -161,7 +173,15 @@ defmodule AshFormBuilder.FormComponent do
 
   @impl Phoenix.LiveComponent
   def handle_event("submit", %{"form" => params}, socket) do
-    case AshPhoenix.Form.submit(socket.assigns.form.source, params: params) do
+    entities = socket.assigns.entities
+    file_fields = extract_file_upload_fields(entities)
+
+    # Consume all file uploads before submitting to Ash
+    {upload_params, socket} = consume_file_uploads(socket, file_fields)
+
+    merged_params = Map.merge(params, upload_params)
+
+    case AshPhoenix.Form.submit(socket.assigns.form.source, params: merged_params) do
       {:ok, result} ->
         notify_parent(socket, result)
         {:noreply, socket}
@@ -169,6 +189,92 @@ defmodule AshFormBuilder.FormComponent do
       {:error, form} ->
         {:noreply, assign(socket, form: to_form(form))}
     end
+  end
+
+  # ---------------------------------------------------------------------------
+  # File Upload Lifecycle
+  # ---------------------------------------------------------------------------
+
+  defp allow_file_uploads(socket, entities) do
+    entities
+    |> extract_file_upload_fields()
+    |> Enum.reduce(socket, fn field, socket ->
+      if upload_registered?(socket, field.name) do
+        socket
+      else
+        Phoenix.LiveView.allow_upload(socket, field.name, build_allow_upload_opts(field))
+      end
+    end)
+  end
+
+  defp upload_registered?(socket, name) do
+    socket.assigns
+    |> Map.get(:uploads, %{})
+    |> Map.has_key?(name)
+  end
+
+  defp build_allow_upload_opts(field) do
+    upload_config = Keyword.get(field.opts, :upload, [])
+
+    accept = Keyword.get(upload_config, :accept, :any)
+    max_entries = Keyword.get(upload_config, :max_entries, 1)
+    max_file_size = Keyword.get(upload_config, :max_file_size, 8_000_000)
+
+    [accept: accept, max_entries: max_entries, max_file_size: max_file_size]
+  end
+
+  defp consume_file_uploads(socket, file_fields) do
+    Enum.reduce(file_fields, {%{}, socket}, fn field, {acc_params, socket} ->
+      upload_config = Keyword.get(field.opts, :upload, [])
+      cloud_module = resolve_cloud_module(upload_config)
+
+      paths =
+        Phoenix.LiveView.consume_uploaded_entries(socket, field.name, fn meta, entry ->
+          store_upload_entry(meta, entry, cloud_module)
+        end)
+
+      case paths do
+        [] ->
+          {acc_params, socket}
+
+        [single] ->
+          {Map.put(acc_params, to_string(field.name), single), socket}
+
+        multiple ->
+          {Map.put(acc_params, to_string(field.name), multiple), socket}
+      end
+    end)
+  end
+
+  defp store_upload_entry(%{path: _path} = meta, entry, cloud_module)
+       when not is_nil(cloud_module) do
+    object = Buckets.Object.from_upload({entry, meta})
+
+    case cloud_module.insert(object) do
+      {:ok, stored} ->
+        {:ok, stored.location.path}
+
+      {:error, reason} ->
+        require Logger
+        Logger.error("Upload storage failed for #{entry.client_name}: #{inspect(reason)}")
+        {:postpone, reason}
+    end
+  end
+
+  defp store_upload_entry(%{path: temp_path}, _entry, nil) do
+    {:ok, temp_path}
+  end
+
+  defp resolve_cloud_module(upload_config) do
+    Keyword.get(upload_config, :cloud) ||
+      Application.get_env(:ash_form_builder, :upload_cloud)
+  end
+
+  defp extract_file_upload_fields(entities) do
+    Enum.flat_map(entities, fn
+      %AshFormBuilder.Field{type: :file_upload} = field -> [field]
+      _ -> []
+    end)
   end
 
   # ---------------------------------------------------------------------------
@@ -184,52 +290,37 @@ defmodule AshFormBuilder.FormComponent do
 
   @doc false
   def parse_nested_path(path_string) do
-    # Convert "subtasks[0].items[1]" to proper path structure
-    # Supports deeply nested paths (3+ levels)
     path_string
     |> String.split(".")
     |> Enum.map(&parse_path_segment/1)
   end
 
   defp parse_path_segment(segment) do
-    # Parse segments like "field[0]" or "field"
     case Regex.run(~r/^(\w+)(?:\[(\d+)\])?$/, segment) do
       [_, field, nil] ->
-        String.to_atom(field)
+        String.to_existing_atom(field)
 
       [_, field, index] ->
-        {String.to_atom(field), String.to_integer(index)}
+        {String.to_existing_atom(field), String.to_integer(index)}
 
       _ ->
-        String.to_atom(segment)
+        String.to_existing_atom(segment)
     end
   end
 
   defp create_new_item(resource_mod, action, value, assigns) do
-    # Extract actor from assigns for authorization
     actor = Map.get(assigns, :actor)
-
-    # Determine the primary attribute name for the resource
-    # Try common patterns: :name, :title, :label
     primary_attr = determine_primary_attr(resource_mod)
-
-    # Build the input params for creating the new item
     input_params = %{primary_attr => value}
-
-    # Use Ash Domain's code interface if available, otherwise direct resource call
-    # This respects all Ash policies and validations automatically
     domain = get_domain_for_resource(resource_mod)
 
     cond do
-      # Try to use domain if available
       not is_nil(domain) and function_exported?(domain, action, 2) ->
         apply(domain, action, [input_params, [actor: actor]])
 
-      # Fall back to direct Ash resource call
       function_exported?(resource_mod, action, 2) ->
         apply(resource_mod, action, [input_params, [actor: actor]])
 
-      # Try Ash.create/2 as a last resort
       true ->
         struct(resource_mod, input_params)
         |> Ash.create(actor: actor)
@@ -237,8 +328,6 @@ defmodule AshFormBuilder.FormComponent do
   end
 
   defp extract_creatable_value(label) do
-    # Extract value from label like "Create \"New Tag\""
-    # The pattern is: Create "value"
     case Regex.run(~r/Create "([^"]+)"/, label) do
       [_, value] -> value
       _ -> label
@@ -246,13 +335,19 @@ defmodule AshFormBuilder.FormComponent do
   end
 
   defp determine_primary_attr(resource_mod) do
-    # Check for common primary attribute names in order of preference
     cond do
-      Ash.Resource.Info.attribute(resource_mod, :name) -> :name
-      Ash.Resource.Info.attribute(resource_mod, :title) -> :title
-      Ash.Resource.Info.attribute(resource_mod, :label) -> :label
-      Ash.Resource.Info.attribute(resource_mod, :value) -> :value
-      # Fall back to the first string attribute
+      Ash.Resource.Info.attribute(resource_mod, :name) ->
+        :name
+
+      Ash.Resource.Info.attribute(resource_mod, :title) ->
+        :title
+
+      Ash.Resource.Info.attribute(resource_mod, :label) ->
+        :label
+
+      Ash.Resource.Info.attribute(resource_mod, :value) ->
+        :value
+
       true ->
         resource_mod
         |> Ash.Resource.Info.attributes()
@@ -267,17 +362,14 @@ defmodule AshFormBuilder.FormComponent do
   end
 
   defp get_domain_for_resource(resource_mod) do
-    # Try to get the domain from the resource's __ash_resource__ config
     case Spark.Dsl.Extension.get_persisted(resource_mod, :domain) do
       nil ->
-        # Try to infer from module name (e.g., MyApp.Billing.Clinic -> MyApp.Billing)
         module_parts = Module.split(resource_mod)
 
         if length(module_parts) >= 2 do
           domain_parts = Enum.drop(module_parts, -1)
           domain_mod = Module.concat(domain_parts)
 
-          # Verify the domain module exists and is an Ash domain
           if Code.ensure_loaded?(domain_mod) and
                function_exported?(domain_mod, :__ash_domain__, 0) do
             domain_mod

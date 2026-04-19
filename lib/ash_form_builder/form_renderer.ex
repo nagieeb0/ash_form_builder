@@ -40,6 +40,7 @@ defmodule AshFormBuilder.FormRenderer do
   attr(:target, :any, default: nil)
   attr(:wrapper_class, :string, default: "space-y-4")
   attr(:theme_opts, :list, default: [])
+  attr(:uploads, :map, default: %{})
 
   def form_fields(assigns) do
     assigns = assign(assigns, :theme, theme_module())
@@ -49,7 +50,7 @@ defmodule AshFormBuilder.FormRenderer do
       <%= for entity <- @entities do %>
         <%= if is_struct(entity, AshFormBuilder.Field) do %>
           <%= @theme.render_field(
-            %{form: @form, field: entity, target: @target},
+            %{form: @form, field: entity, target: @target, uploads: @uploads},
             @theme_opts
           ) %>
         <% end %>

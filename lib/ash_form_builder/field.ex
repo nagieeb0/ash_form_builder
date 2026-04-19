@@ -27,6 +27,7 @@ defmodule AshFormBuilder.Field do
   * `:hidden` - Hidden input
   * `:url` - URL input
   * `:tel` - Telephone input
+  * `:file_upload` - File upload (bridged to Phoenix LiveView `allow_upload`)
   """
 
   @type t :: %__MODULE__{
@@ -46,7 +47,8 @@ defmodule AshFormBuilder.Field do
             | :datetime
             | :hidden
             | :url
-            | :tel,
+            | :tel
+            | :file_upload,
           required: boolean(),
           options: list(),
           class: String.t() | nil,
