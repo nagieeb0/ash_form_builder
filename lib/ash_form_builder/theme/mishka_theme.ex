@@ -80,8 +80,8 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
   # ---------------------------------------------------------------------------
 
   @impl AshFormBuilder.Theme
-  def render_field(assigns, opts \\ []) do
-    assigns = assign(assigns, :theme_opts, opts)
+  def render_field(assigns, opts) do
+    assigns = Map.put(assigns, :theme_opts, opts)
 
     case assigns.field.type do
       :hidden -> render_hidden_field(assigns)
@@ -136,6 +136,9 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
     debounce = Keyword.get(opts, :debounce, 300)
     placeholder = Keyword.get(opts, :placeholder, "Search and select...")
     preload_options = Keyword.get(opts, :preload_options, field.options || [])
+    creatable? = Keyword.get(opts, :creatable, false)
+    create_action = Keyword.get(opts, :create_action, :create)
+    create_label = Keyword.get(opts, :create_label, "Create \"#{field.name}\"")
 
     # Get current selected values from form
     current_values = extract_combobox_values(form, field.name)
@@ -162,7 +165,11 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
         options: preload_options,
         errors: field_errors,
         change_attrs: change_attrs,
-        multiple: true
+        multiple: true,
+        creatable?: creatable?,
+        create_action: create_action,
+        create_label: create_label,
+        destination_resource: field.destination_resource
       )
 
     ~H"""
@@ -220,6 +227,23 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
               {label}
             </.combobox_option>
           <% end %>
+
+          <%!-- Creatable button: shown when user types a new value --%>
+          <:create_action :if={@creatable?}>
+            <button
+              type="button"
+              phx-click="create_combobox_item"
+              phx-value-field={@field.name}
+              phx-value-resource={inspect(@destination_resource)}
+              phx-value-action={@create_action}
+              phx-value-creatable_value={@create_label}
+              phx-target={@theme_opts[:target]}
+              class="btn btn-sm btn-primary w-full"
+            >
+              <span class="icon icon-plus"></span>
+              {@create_label}
+            </button>
+          </:create_action>
         </.combobox_options>
       </.combobox>
 

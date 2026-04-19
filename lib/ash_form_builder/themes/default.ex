@@ -21,8 +21,8 @@ defmodule AshFormBuilder.Themes.Default do
   # ---------------------------------------------------------------------------
 
   @impl AshFormBuilder.Theme
-  def render_field(assigns, opts \\ []) do
-    assigns = assign(assigns, :opts, opts)
+  def render_field(assigns, opts) do
+    assigns = Map.put(assigns, :opts, opts)
 
     case assigns.field.type do
       :hidden -> render_hidden_field(assigns)

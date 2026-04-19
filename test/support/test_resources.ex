@@ -190,6 +190,132 @@ defmodule AshFormBuilder.Test.Resources do
   end
 
   # ---------------------------------------------------------------------------
+  # Category — for many_to_many relationship testing with creatable support
+  # ---------------------------------------------------------------------------
+
+  defmodule Category do
+    use Ash.Resource,
+      domain: AshFormBuilder.Test.Resources.Blog,
+      data_layer: Ash.DataLayer.Ets
+
+    ets do
+      private?(true)
+    end
+
+    attributes do
+      uuid_primary_key(:id)
+      attribute(:name, :string, allow_nil?: false, public?: true)
+      attribute(:description, :string, public?: true)
+    end
+
+    actions do
+      defaults([:read, :destroy, create: [:name, :description], update: [:name, :description]])
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # BlogPost — many_to_many with Categories (creatable support)
+  # ---------------------------------------------------------------------------
+
+  defmodule BlogPost do
+    use Ash.Resource,
+      domain: AshFormBuilder.Test.Resources.Blog,
+      data_layer: Ash.DataLayer.Ets,
+      extensions: [AshFormBuilder]
+
+    ets do
+      private?(true)
+    end
+
+    attributes do
+      uuid_primary_key(:id)
+      attribute(:title, :string, allow_nil?: false, public?: true)
+      attribute(:content, :string, public?: true)
+    end
+
+    relationships do
+      many_to_many(:categories, Category) do
+        through BlogPostCategory
+        source_attribute_on_join_resource(:blog_post_id)
+        destination_attribute_on_join_resource(:category_id)
+      end
+    end
+
+    actions do
+      defaults([
+        :read,
+        :destroy
+      ])
+
+      create :create do
+        accept([:title, :content])
+        manage_relationship(:categories, :categories, type: :append_and_remove)
+      end
+
+      update :update do
+        accept([:title, :content])
+        manage_relationship(:categories, :categories, type: :append_and_remove)
+      end
+    end
+
+    form do
+      action(:create)
+
+      field :title do
+        label("Post Title")
+        placeholder("Enter post title")
+        required(true)
+      end
+
+      field :content do
+        label("Content")
+        type(:textarea)
+      end
+
+      field :categories do
+        type(:multiselect_combobox)
+        label("Categories")
+        placeholder("Search or create categories")
+
+        opts [
+          creatable: true,
+          create_action: :create,
+          create_label: "Create \"",
+          search_event: "search_categories",
+          debounce: 300,
+          label_key: :name,
+          value_key: :id
+        ]
+      end
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # BlogPostCategory — Join resource
+  # ---------------------------------------------------------------------------
+
+  defmodule BlogPostCategory do
+    use Ash.Resource,
+      domain: AshFormBuilder.Test.Resources.Blog,
+      data_layer: Ash.DataLayer.Ets
+
+    ets do
+      private?(true)
+    end
+
+    attributes do
+      uuid_primary_key(:id)
+      attribute(:blog_post_id, :uuid, allow_nil?: false, public?: true)
+      attribute(:category_id, :uuid, allow_nil?: false, public?: true)
+    end
+
+    relationships do
+      belongs_to(:blog_post, BlogPost)
+      belongs_to(:category, Category)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # Blog domain
   # ---------------------------------------------------------------------------
 
@@ -201,6 +327,9 @@ defmodule AshFormBuilder.Test.Resources do
       resource(Post)
       resource(Article)
       resource(Review)
+      resource(Category)
+      resource(BlogPost)
+      resource(BlogPostCategory)
     end
   end
 end

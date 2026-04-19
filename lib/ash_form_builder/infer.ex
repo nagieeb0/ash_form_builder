@@ -325,7 +325,9 @@ defmodule AshFormBuilder.Infer do
       label_key: label_key,
       value_key: value_key,
       search_param: "query",
-      debounce: 300
+      debounce: 300,
+      creatable: false,
+      create_action: :create
     ]
   end
 

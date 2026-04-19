@@ -169,6 +169,46 @@ defmodule MyApp.Healthcare.Clinic do
         hint: "Search and select all applicable specialties"
       ]
     end
+
+    # -------------------------------------------------------------------------
+    # Many-to-Many: Creatable Combobox for Tags
+    # Allows users to create new tags on-the-fly
+    # -------------------------------------------------------------------------
+
+    field :tags do
+      type :multiselect_combobox
+      label "Tags"
+      placeholder "Search or create tags..."
+      required false
+
+      # Enable creatable functionality
+      opts [
+        # Allow creating new items directly from the combobox
+        creatable: true,
+
+        # Action to use for creating new items (default: :create)
+        create_action: :create,
+
+        # Custom label for the create button
+        # The \"\" will be replaced with the user's input
+        create_label: "Create \"\"",
+
+        # Event name for LiveView search handler
+        search_event: "search_tags",
+
+        # Debounce delay for search input (ms)
+        debounce: 300,
+
+        # Field to use for option labels (from Tag resource)
+        label_key: :name,
+
+        # Field to use for option values (from Tag resource)
+        value_key: :id,
+
+        # Hint shown below the combobox
+        hint: "Type to search existing tags or create a new one"
+      ]
+    end
   end
 end
 

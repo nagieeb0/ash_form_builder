@@ -113,6 +113,51 @@ defmodule AshFormBuilder.FormComponent do
   end
 
   @impl Phoenix.LiveComponent
+  def handle_event("remove_combobox_item", %{"field" => field, "item" => item}, socket) do
+    # Remove a selected item from a combobox field
+    form = socket.assigns.form.source
+    current_values = AshPhoenix.Form.value(form, field) || []
+    new_values = Enum.reject(current_values, &to_string(&1) == item)
+    form = AshPhoenix.Form.validate(form, %{field => new_values})
+    {:noreply, assign(socket, form: to_form(form))}
+  end
+
+  @impl Phoenix.LiveComponent
+  def handle_event(
+        "create_combobox_item",
+        %{"field" => field, "resource" => resource_mod, "action" => action, "creatable_value" => creatable_value},
+        socket
+      ) do
+    # Create a new record in the destination resource and add it to the selection
+    resource_mod = String.to_atom(resource_mod)
+    field = String.to_atom(field)
+    action = String.to_atom(action)
+
+    # The creatable_value contains the label like "Create \"New Tag\""
+    # We need to extract the actual value from the quoted string
+    new_item_value = extract_creatable_value(creatable_value)
+
+    # Create the new record using Ash
+    case create_new_item(resource_mod, action, new_item_value, socket.assigns) do
+      {:ok, new_record} ->
+        # Add the new record to the current selection
+        form = socket.assigns.form.source
+        current_values = AshPhoenix.Form.value(form, field) || []
+        new_id = Map.get(new_record, :id)
+        updated_values = Enum.uniq(current_values ++ [new_id])
+        form = AshPhoenix.Form.validate(form, %{field => updated_values})
+        {:noreply, assign(socket, form: to_form(form))}
+
+      {:error, changeset_or_error} ->
+        # Log the error and return the form unchanged
+        # In production, you might want to show a toast or inline error
+        require Logger
+        Logger.error("Failed to create combobox item: #{inspect(changeset_or_error)}")
+        {:noreply, socket}
+    end
+  end
+
+  @impl Phoenix.LiveComponent
   def handle_event("submit", %{"form" => params}, socket) do
     case AshPhoenix.Form.submit(socket.assigns.form.source, params: params) do
       {:ok, result} ->
@@ -132,6 +177,94 @@ defmodule AshFormBuilder.FormComponent do
     case socket.assigns[:on_submit] do
       nil -> send(self(), {:form_submitted, socket.assigns.resource, result})
       callback when is_function(callback, 1) -> callback.(result)
+    end
+  end
+
+  defp create_new_item(resource_mod, action, value, assigns) do
+    # Extract actor from assigns for authorization
+    actor = Map.get(assigns, :actor)
+
+    # Determine the primary attribute name for the resource
+    # Try common patterns: :name, :title, :label
+    primary_attr = determine_primary_attr(resource_mod)
+
+    # Build the input params for creating the new item
+    input_params = %{primary_attr => value}
+
+    # Use Ash Domain's code interface if available, otherwise direct resource call
+    # This respects all Ash policies and validations automatically
+    domain = get_domain_for_resource(resource_mod)
+
+    cond do
+      # Try to use domain if available
+      not is_nil(domain) and function_exported?(domain, action, 2) ->
+        apply(domain, action, [input_params, [actor: actor]])
+
+      # Fall back to direct Ash resource call
+      function_exported?(resource_mod, action, 2) ->
+        apply(resource_mod, action, [input_params, [actor: actor]])
+
+      # Try Ash.create/2 as a last resort
+      true ->
+        struct(resource_mod, input_params)
+        |> Ash.create(actor: actor)
+    end
+  end
+
+  defp extract_creatable_value(label) do
+    # Extract value from label like "Create \"New Tag\""
+    # The pattern is: Create "value"
+    case Regex.run(~r/Create "([^"]+)"/, label) do
+      [_, value] -> value
+      _ -> label
+    end
+  end
+
+  defp determine_primary_attr(resource_mod) do
+    # Check for common primary attribute names in order of preference
+    cond do
+      Ash.Resource.Info.attribute(resource_mod, :name) -> :name
+      Ash.Resource.Info.attribute(resource_mod, :title) -> :title
+      Ash.Resource.Info.attribute(resource_mod, :label) -> :label
+      Ash.Resource.Info.attribute(resource_mod, :value) -> :value
+      # Fall back to the first string attribute
+      true ->
+        resource_mod
+        |> Ash.Resource.Info.attributes()
+        |> Enum.find(:name, fn attr ->
+          attr.type in [:string, :ci_string] and attr.name != :id
+        end)
+        |> case do
+          %Ash.Resource.Attribute{name: name} -> name
+          _ -> :name
+        end
+    end
+  end
+
+  defp get_domain_for_resource(resource_mod) do
+    # Try to get the domain from the resource's __ash_resource__ config
+    case Spark.Dsl.Extension.get_persisted(resource_mod, :domain) do
+      nil ->
+        # Try to infer from module name (e.g., MyApp.Billing.Clinic -> MyApp.Billing)
+        module_parts = Module.split(resource_mod)
+
+        if length(module_parts) >= 2 do
+          domain_parts = Enum.drop(module_parts, -1)
+          domain_mod = Module.concat(domain_parts)
+
+          # Verify the domain module exists and is an Ash domain
+          if Code.ensure_loaded?(domain_mod) and
+               function_exported?(domain_mod, :__ash_domain__, 0) do
+            domain_mod
+          else
+            nil
+          end
+        else
+          nil
+        end
+
+      domain ->
+        domain
     end
   end
 

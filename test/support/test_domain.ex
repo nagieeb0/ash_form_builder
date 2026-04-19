@@ -63,11 +63,11 @@ defmodule AshFormBuilder.Test.Domain.Subtask do
     defaults([:read, :destroy])
 
     create :create do
-      accept([:title, :clinic])
+      accept([:title])
     end
 
     update :update do
-      accept([:title, :clinic])
+      accept([:title])
     end
   end
 end
@@ -103,12 +103,18 @@ defmodule AshFormBuilder.Test.Domain.Clinic do
     defaults([:read, :destroy])
 
     create :create do
-      accept([:name, :phone, :specialties, :subtasks])
+      accept([:name, :phone])
       argument(:referral_code, :string, allow_nil?: true)
+
+      manage_relationship(:specialties, :specialties, type: :append_and_remove)
+      manage_relationship(:subtasks, :subtasks, type: :create)
     end
 
     update :update do
-      accept([:name, :phone, :specialties, :subtasks])
+      accept([:name, :phone])
+
+      manage_relationship(:specialties, :specialties, type: :append_and_remove)
+      manage_relationship(:subtasks, :subtasks, type: :create)
     end
   end
 

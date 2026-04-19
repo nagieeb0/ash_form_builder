@@ -194,6 +194,9 @@ defmodule AshFormBuilder do
   * `debounce` - Search debounce in ms (default: `300`)
   * `label_key` - Field for labels (default: `:name`)
   * `value_key` - Field for values (default: `:id`)
+  * `creatable` - Allow creating new items via combobox (default: `false`)
+  * `create_action` - Action to use for creating new items (default: `:create`)
+  * `create_label` - Label template for create button (default: `"Create \"{value}\""`)
 
   ### `nested` Options
 

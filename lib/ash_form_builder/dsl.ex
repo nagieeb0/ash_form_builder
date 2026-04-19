@@ -98,6 +98,9 @@ defmodule AshFormBuilder.Dsl do
         * `preload_options` - Preload initial options as `[{label, value}]`
         * `label_key` - Field to use as label (default: `:name`)
         * `value_key` - Field to use as value (default: `:id`)
+        * `creatable` - Allow creating new items via combobox (default: false)
+        * `create_action` - Action to use for creating new items (default: :create)
+        * `create_label` - Label for the create button (default: "Create \"{value}\"")
         """
       ]
     ]
