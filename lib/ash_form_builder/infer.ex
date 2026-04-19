@@ -374,12 +374,12 @@ defmodule AshFormBuilder.Infer do
     not attr.allow_nil? and is_nil(attr.default)
   end
 
-  defp infer_placeholder(attr) do
+  defp infer_placeholder(_attr) do
     # Could be enhanced with attr.constraints or metadata
     nil
   end
 
-  defp infer_hint(attr) do
+  defp infer_hint(_attr) do
     # Could be enhanced with attr.description or metadata
     nil
   end

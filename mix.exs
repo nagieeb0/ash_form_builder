@@ -57,7 +57,7 @@ defmodule AshFormBuilder.MixProject do
       {:phoenix_live_view, "~> 1.0"},
       {:phoenix, "~> 1.7"},
       {:phoenix_html, "~> 4.0"},
-      
+
       # Optional: UI Component Libraries
       {:mishka_chelekom, "~> 0.0.8", optional: true},
 
@@ -71,7 +71,7 @@ defmodule AshFormBuilder.MixProject do
 
   defp docs do
     [
-      main: "AshFormBuilder",
+      main: "README",
       title: "AshFormBuilder v#{@version}",
       source_ref: "v#{@version}",
       source_url: @source_url,

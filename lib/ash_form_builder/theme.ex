@@ -1,42 +1,85 @@
 defmodule AshFormBuilder.Theme do
   @moduledoc """
-  Behaviour for AshFormBuilder rendering themes.
+  Behaviour for comprehensive theme customization in AshFormBuilder v0.2.0.
 
   A theme module renders individual form fields by implementing `c:render_field/2`.
   The structural rendering (entity iteration, nested-form `inputs_for` loops,
   add/remove buttons) is handled by `AshFormBuilder.FormRenderer`, but themes
   can customize nested form rendering via `c:render_nested/1`.
 
-  ## Configuring a theme
+  ## Configuring a Theme
 
       # config/config.exs
-      config :ash_form_builder, :theme, MyAppWeb.MishkaFormTheme
+      config :ash_form_builder, :theme, MyAppWeb.CustomTheme
 
-  The default theme is `AshFormBuilder.Themes.Default`.
+      # With global options
+      config :ash_form_builder,
+        theme: AshFormBuilder.Theme.MishkaTheme,
+        theme_opts: [
+          wrapper_class: "space-y-6",
+          field_wrapper_class: "mb-4",
+          label_class: "block text-sm font-medium mb-1",
+          input_class: "w-full px-3 py-2 border rounded-md",
+          error_class: "text-sm text-red-600 mt-1",
+          hint_class: "text-sm text-gray-500 mt-1"
+        ]
 
-  ## Implementing a theme
+  ## Implementing a Custom Theme
 
-      defmodule MyApp.CustomTheme do
+      defmodule MyAppWeb.CustomTheme do
         @behaviour AshFormBuilder.Theme
         use Phoenix.Component
 
         @impl AshFormBuilder.Theme
-        def render_field(assigns, _opts) do
-          # Render a single field
+        def render_field(assigns, opts) do
+          case assigns.field.type do
+            :text_input -> render_text_input(assigns)
+            :textarea -> render_textarea(assigns)
+            :multiselect_combobox -> render_combobox(assigns)
+            _ -> render_default(assigns)
+          end
         end
 
         @impl AshFormBuilder.Theme
         def render_nested(assigns) do
-          # Optionally customize nested form rendering
+          # Optional: customize nested form rendering
+          nil  # Falls back to default
+        end
+
+        defp render_text_input(assigns) do
+          ~H\"""
+          <div class={[@theme_opts[:field_wrapper_class], "form-group"]}>
+            <label for={Phoenix.HTML.Form.input_id(@form, @field.name)}>
+              {@field.label}
+            </label>
+            <input
+              type="text"
+              id={Phoenix.HTML.Form.input_id(@form, @field.name)}
+              class="form-control"
+            />
+          </div>
+          \"""
         end
       end
 
-  ## Assigns guaranteed in `render_field/2`
+  ## Theme Callbacks
 
-  | key     | type                 | description                    |
-  |---------|----------------------|--------------------------------|
-  | `:form` | `Phoenix.HTML.Form`  | The parent or nested form      |
-  | `:field`| `AshFormBuilder.Field` | The field struct to render   |
+  ### Required
+
+  * `c:render_field/2` - Renders individual form fields
+
+  ### Optional
+
+  * `c:render_nested/1` - Customizes nested form rendering
+  * `c:render_component/2` - Renders specific component types (for advanced customization)
+
+  ## Assigns Guaranteed in `render_field/2`
+
+  | Key | Type | Description |
+  |-----|------|-------------|
+  | `:form` | `Phoenix.HTML.Form` | The parent or nested form |
+  | `:field` | `AshFormBuilder.Field` | The field struct to render |
+  | `:theme_opts` | `keyword()` | Theme-specific options from config |
 
   ## Field Types
 
@@ -45,7 +88,7 @@ defmodule AshFormBuilder.Theme do
   * `:text_input` - Standard text input
   * `:textarea` - Multi-line text area
   * `:select` - Single-select dropdown
-  * `:multiselect_combobox` - Many-to-many searchable multi-select (MishkaChelekom combobox)
+  * `:multiselect_combobox` - Many-to-many searchable multi-select
   * `:checkbox` - Boolean checkbox
   * `:number` - Numeric input
   * `:email` - Email input
@@ -64,7 +107,8 @@ defmodule AshFormBuilder.Theme do
   * `:search_event` - Event name for searching
   * `:search_param` - Query param name (default: "query")
   * `:debounce` - Search debounce in ms (default: 300)
-  * `:preload_options` - Preloaded options as `[{label, value}]`
+  * `:creatable` - Allow creating new items (default: false)
+  * `:create_action` - Action for creating items (default: :create)
   * `:label_key` - Field for labels (default: `:name`)
   * `:value_key` - Field for values (default: `:id`)
   """
@@ -76,6 +120,7 @@ defmodule AshFormBuilder.Theme do
 
   * `:form` - `Phoenix.HTML.Form` - The parent or nested form
   * `:field` - `AshFormBuilder.Field` - The field struct to render
+  * `:theme_opts` - Theme-specific options passed from renderer
 
   ## Opts
 
@@ -98,5 +143,20 @@ defmodule AshFormBuilder.Theme do
   """
   @callback render_nested(assigns :: map()) :: Phoenix.LiveView.Rendered.t() | nil
 
-  @optional_callbacks render_nested: 1
+  @doc """
+  Renders a specific component type. Optional - for advanced theme customization.
+
+  Allows themes to inject custom components for specific field types or UI patterns.
+
+  ## Examples
+
+      def render_component(:combobox, assigns) do
+        # Custom combobox implementation
+      end
+
+      def render_component(_, _), do: nil  # Fallback to default
+  """
+  @callback render_component(atom(), assigns :: map()) :: Phoenix.LiveView.Rendered.t() | nil
+
+  @optional_callbacks render_nested: 1, render_component: 2
 end
