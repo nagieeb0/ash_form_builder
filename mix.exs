@@ -1,10 +1,13 @@
 defmodule AshFormBuilder.MixProject do
   use Mix.Project
 
+  @source_url "https://github.com/nagieeb0/ash_form_builder"
+  @version "0.2.0"
+
   def project do
     [
       app: :ash_form_builder,
-      version: "0.1.2",
+      version: @version,
       elixir: "~> 1.17",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -12,22 +15,30 @@ defmodule AshFormBuilder.MixProject do
       docs: docs(),
 
       # Hex.pm Package Configuration
-      description: """
-      ⚠️  EXPERIMENTAL - Use at Your Own Risk ⚠️
-
-      Auto-generates Phoenix LiveView forms from Ash Framework resources.
-      Features: auto-inference, searchable/creatable combobox, nested forms, themes.
-
-      EXPERIMENTAL: API may change. Use at your own risk.
-      """,
-
+      description: description(),
       package: package(),
 
-      # Docs
+      # Project Information
       name: "AshFormBuilder",
-      source_url: "https://github.com/nagieeb0/ash_form_builder",
+      source_url: @source_url,
       homepage_url: "https://github.com/nagieeb0/ash_form_builder"
     ]
+  end
+
+  defp description do
+    """
+    AshFormBuilder = AshPhoenix.Form + Auto UI + Smart Components + Themes.
+
+    A declarative form generation engine for Ash Framework that automatically
+    generates Phoenix LiveView forms from resource definitions. Features include
+    zero-config field inference, searchable/creatable combobox for relationships,
+    dynamic nested forms, and a pluggable theme system.
+
+    Why AshFormBuilder?
+    - AshPhoenix.Form provides the form state management
+    - AshFormBuilder adds: Auto UI generation + Smart Components + Themes
+    - Result: Complete forms with 1-3 lines of configuration
+    """
   end
 
   def application do
@@ -39,48 +50,67 @@ defmodule AshFormBuilder.MixProject do
 
   defp deps do
     [
+      # Core Dependencies
       {:spark, "~> 2.0"},
       {:ash, "~> 3.0"},
       {:ash_phoenix, "~> 2.0"},
       {:phoenix_live_view, "~> 1.0"},
       {:phoenix, "~> 1.7"},
       {:phoenix_html, "~> 4.0"},
-      {:mishka_chelekom, "~> 0.0.8"},
+      
+      # Optional: UI Component Libraries
+      {:mishka_chelekom, "~> 0.0.8", optional: true},
 
-      # Dev dependencies
+      # Dev Dependencies
       {:ex_doc, "~> 0.31", only: :dev, runtime: false},
       {:ecto_sql, "~> 3.10", only: :test},
-      {:postgrex, ">= 0.0.0", only: :test}
+      {:postgrex, ">= 0.0.0", only: :test},
+      {:ash_postgres, "~> 2.0", only: :test}
     ]
   end
 
   defp docs do
     [
       main: "AshFormBuilder",
-      title: "AshFormBuilder v#{project()[:version]}",
-      source_ref: "v#{project()[:version]}",
-      source_url: project()[:source_url],
-      extras: [],
+      title: "AshFormBuilder v#{@version}",
+      source_ref: "v#{@version}",
+      source_url: @source_url,
+      authors: ["Nagieeb"],
+      extras: [
+        "README.md",
+        "CHANGELOG.md",
+        "guides/todo_app_integration.exs",
+        "guides/relationships_guide.exs"
+      ],
+      groups_for_extras: [
+        Guides: ["guides/todo_app_integration.exs", "guides/relationships_guide.exs"],
+        "": ["README.md", "CHANGELOG.md"]
+      ],
       groups_for_modules: [
-        "Core Modules": [
+        "Core API": [
           AshFormBuilder,
           AshFormBuilder.FormComponent,
           AshFormBuilder.FormRenderer,
           AshFormBuilder.Infer,
-          AshFormBuilder.Info,
+          AshFormBuilder.Info
+        ],
+        "Data Structures": [
           AshFormBuilder.Field,
           AshFormBuilder.NestedForm
         ],
-        "UI Themes": [
+        "Themes": [
           AshFormBuilder.Theme,
           AshFormBuilder.Theme.MishkaTheme,
           AshFormBuilder.Themes.Default
         ],
-        "Internal Transformers": [
+        "Internal": [
           AshFormBuilder.Transformers.GenerateFormModule,
           AshFormBuilder.Transformers.ResolveNestedResources
         ]
-      ]
+      ],
+      source_url: @source_url,
+      formatters: ["html", "epub"],
+      skip_undefined_reference_warnings_on: ["CHANGELOG.md"]
     ]
   end
 
@@ -88,28 +118,58 @@ defmodule AshFormBuilder.MixProject do
     [
       licenses: ["MIT"],
       links: %{
-        "GitHub" => "https://github.com/nagieeb0/ash_form_builder",
-        "Ash Framework" => "https://hexdocs.pm/ash"
+        "GitHub" => @source_url,
+        "Hex" => "https://hex.pm/packages/ash_form_builder",
+        "Ash Framework" => "https://hexdocs.pm/ash",
+        "Phoenix LiveView" => "https://hexdocs.pm/phoenix_live_view"
       },
-      files: ~w(
-        lib
-        mix.exs
-        README.md
-        LICENSE
-        CHANGELOG.md
-        guides
-        example_usage.ex
-      ),
+      files: [
+        "lib",
+        "mix.exs",
+        "README.md",
+        "CHANGELOG.md",
+        "LICENSE",
+        "guides",
+        "example_usage.ex"
+      ],
       maintainers: ["Nagieeb"],
-      # Experimental warning in package metadata
       build_tools: ["mix"],
       requirements: [
-        {:spark, "~> 2.0"},
-        {:ash, "~> 3.0"},
-        {:ash_phoenix, "~> 2.0"},
-        {:phoenix_live_view, "~> 1.0"},
-        {:phoenix, "~> 1.7"},
-        {:phoenix_html, "~> 4.0"}
+        spark: [
+          app: :spark,
+          requirement: "~> 2.0",
+          optional: false
+        ],
+        ash: [
+          app: :ash,
+          requirement: "~> 3.0",
+          optional: false
+        ],
+        ash_phoenix: [
+          app: :ash_phoenix,
+          requirement: "~> 2.0",
+          optional: false
+        ],
+        phoenix_live_view: [
+          app: :phoenix_live_view,
+          requirement: "~> 1.0",
+          optional: false
+        ],
+        phoenix: [
+          app: :phoenix,
+          requirement: "~> 1.7",
+          optional: false
+        ],
+        phoenix_html: [
+          app: :phoenix_html,
+          requirement: "~> 4.0",
+          optional: false
+        ],
+        mishka_chelekom: [
+          app: :mishka_chelekom,
+          requirement: "~> 0.0.8",
+          optional: true
+        ]
       ]
     ]
   end
