@@ -70,12 +70,12 @@ defmodule AshFormBuilder.MixProject do
           AshFormBuilder.Field,
           AshFormBuilder.NestedForm
         ],
-        Themes: [
+        "UI Themes": [
           AshFormBuilder.Theme,
           AshFormBuilder.Theme.MishkaTheme,
           AshFormBuilder.Themes.Default
         ],
-        Transformers: [
+        "Internal Transformers": [
           AshFormBuilder.Transformers.GenerateFormModule,
           AshFormBuilder.Transformers.ResolveNestedResources
         ]
