@@ -72,7 +72,7 @@ defmodule AshFormBuilder.MixProject do
       extras: [
         "README.md",
         "CHANGELOG.md"
-        # Guides available in package but not rendered in hexdocs
+
       ],
       groups_for_extras: [
         "": ["README.md", "CHANGELOG.md"]

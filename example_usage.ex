@@ -347,6 +347,104 @@ defmodule MyApp.Healthcare.Clinic do
     #   end
     # end
   end
+
+  # ===========================================================================
+  # UPDATE FORM - Separate configuration for update action
+  # ===========================================================================
+  #
+  # You can define multiple `form` blocks in the same resource.
+  # Each targets a different action (create, update, destroy, etc.)
+  #
+  # Update forms automatically:
+  # - Preload many_to_many relationships to show existing selections
+  # - Populate all fields with current record values
+  # ===========================================================================
+
+  form do
+    # Target the update action
+    action :update
+
+    # Customize submit button for update
+    submit_label "Save Changes"
+
+    # Optional: Different wrapper class for update forms
+    # wrapper_class "space-y-6 update-form"
+
+    # Field customizations specific to update forms
+    field :name do
+      label "Clinic Name"
+      placeholder "e.g., Downtown Medical Center"
+      required true
+      # Update-specific hint
+      hint "Changing the name will require re-verification"
+    end
+
+    field :address do
+      label "Street Address"
+      type :textarea
+      placeholder "Full address including city and zip"
+      required true
+    end
+
+    field :phone do
+      label "Contact Phone"
+      placeholder "+1 555-123-4567"
+    end
+
+    field :email do
+      label "Email Address"
+      type :email
+      placeholder "contact@clinic.com"
+    end
+
+    field :website do
+      label "Website URL"
+      type :url
+      placeholder "https://www.clinic.com"
+    end
+
+    field :is_active do
+      label "Clinic Active"
+      type :checkbox
+      hint "Uncheck to mark as temporarily closed"
+    end
+
+    # Many-to-Many: Searchable Combobox
+    # In update forms, existing selections are automatically preloaded
+    field :specialties do
+      type :multiselect_combobox
+      label "Medical Specialties"
+      placeholder "Search specialties..."
+      required false
+
+      opts [
+        search_event: "search_specialties",
+        debounce: 300,
+        label_key: :name,
+        value_key: :id,
+        hint: "Search and select all applicable specialties"
+      ]
+    end
+
+    # Many-to-Many: Creatable Combobox
+    field :tags do
+      type :multiselect_combobox
+      label "Tags"
+      placeholder "Search or create tags..."
+      required false
+
+      opts [
+        creatable: true,
+        create_action: :create,
+        create_label: "Create \"\"",
+        search_event: "search_tags",
+        debounce: 300,
+        label_key: :name,
+        value_key: :id,
+        hint: "Type to search existing tags or create a new one"
+      ]
+    end
+  end
 end
 
 # =============================================================================
@@ -518,11 +616,13 @@ defmodule MyAppWeb.ClinicLive.Form do
   def mount(%{"id" => id} = _params, _session, socket) do
     # EDIT MODE: Update existing clinic
     #
-    # Note: For update forms, many_to_many relationships need to be preloaded
-    # for the combobox to show current selections.
+    # Note: for_update/2 automatically preloads required many_to_many relationships
+    # so the combobox displays current selections. Manual preloading shown here
+    # is optional but useful if you need the loaded data for other purposes.
     #
     clinic = Healthcare.get_clinic!(id, load: [:specialties, :tags], actor: socket.assigns.current_user)
-    
+
+    # for_update/2 auto-preloads required relationships based on form configuration
     form = Healthcare.Clinic.Form.for_update(clinic, actor: socket.assigns.current_user)
 
     {:ok,

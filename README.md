@@ -65,18 +65,26 @@ defmodule MyApp.Todos.Task do
   end
 
   actions do
-    create :create do
-      accept [:title, :description, :completed]
-    end
+    defaults [:create, :read, :update, :destroy]
   end
 
+  # Create form - auto-infers fields from :create action
   form do
     action :create  # ← That's it! Fields auto-inferred
+    submit_label "Create Task"
+  end
+
+  # Update form - separate configuration for update action
+  form do
+    action :update
+    submit_label "Update Task"
   end
 end
 ```
 
 ### 4. Use in LiveView
+
+**Create Form:**
 
 ```elixir
 defmodule MyAppWeb.TaskLive.Form do
@@ -84,7 +92,7 @@ defmodule MyAppWeb.TaskLive.Form do
 
   def mount(_params, _session, socket) do
     form = MyApp.Todos.Task.Form.for_create(actor: socket.assigns.current_user)
-    {:ok, assign(socket, form: form)}
+    {:ok, assign(socket, form: form, mode: :create)}
   end
 
   def render(assigns) do
@@ -104,7 +112,36 @@ defmodule MyAppWeb.TaskLive.Form do
 end
 ```
 
-**Result:** A complete, validated form with title (text input), description (textarea), and completed (checkbox) - all from 1 line of configuration.
+**Update Form:**
+
+```elixir
+defmodule MyAppWeb.TaskLive.Edit do
+  use MyAppWeb, :live_view
+
+  def mount(%{"id" => id}, _session, socket) do
+    task = MyApp.Todos.get_task!(id, actor: socket.assigns.current_user)
+    form = MyApp.Todos.Task.Form.for_update(task, actor: socket.assigns.current_user)
+    {:ok, assign(socket, form: form, mode: :edit)}
+  end
+
+  def render(assigns) do
+    ~H"""
+    <.live_component
+      module={AshFormBuilder.FormComponent}
+      id="task-edit-form"
+      resource={MyApp.Todos.Task}
+      form={@form}
+    />
+    """
+  end
+
+  def handle_info({:form_submitted, MyApp.Todos.Task, task}, socket) do
+    {:noreply, push_navigate(socket, to: ~p"/tasks/#{task.id}")}
+  end
+end
+```
+
+**Result:** Complete create and update forms with auto-inferred fields - all from 2 `form` blocks.
 
 ---
 
@@ -211,6 +248,91 @@ end
 - "Add Subtask" button → adds new subtask form
 - "Remove" button on each subtask → removes from form
 - Full validation support for nested fields
+
+---
+
+## 🔄 Create vs Update Forms
+
+AshFormBuilder supports both create and update forms with **separate `form` blocks** for each action.
+
+### Multiple Form Blocks Per Resource
+
+You can define multiple `form` blocks in the same resource - each targeting a different action:
+
+```elixir
+defmodule MyApp.Todos.Task do
+  use Ash.Resource,
+    domain: MyApp.Todos,
+    extensions: [AshFormBuilder]
+
+  # ... attributes and relationships
+
+  actions do
+    defaults [:create, :read, :update, :destroy]
+  end
+
+  # CREATE form configuration
+  form do
+    action :create
+    submit_label "Create Task"
+
+    field :title do
+      label "Task Title"
+      placeholder "Enter task title"
+      required true
+    end
+  end
+
+  # UPDATE form configuration (separate block)
+  form do
+    action :update
+    submit_label "Save Changes"
+
+    # Can have different field customizations for update
+    field :title do
+      label "Task Title"
+      hint "Changing the title will notify collaborators"
+    end
+  end
+end
+```
+
+### Update Forms Auto-Preload Relationships
+
+For update forms, `many_to_many` relationships are **automatically preloaded** so the form displays existing selections:
+
+```elixir
+# In your LiveView
+def mount(%{"id" => id}, _session, socket) do
+  # for_update/2 automatically preloads required relationships
+  task = MyApp.Todos.Task |> MyApp.Todos.get_task!(id)
+  form = MyApp.Todos.Task.Form.for_update(task, actor: socket.assigns.current_user)
+  {:ok, assign(socket, form: form)}
+end
+```
+
+**Behind the scenes:** The generated `Form.for_update/2` helper detects which relationships need preloading (based on your `many_to_many` fields) and loads them automatically.
+
+### Domain Code Interface with Update Forms
+
+When using Domain Code Interfaces, update forms work seamlessly:
+
+```elixir
+# Domain configuration
+defmodule MyApp.Todos do
+  use Ash.Domain
+
+  resources do
+    resource MyApp.Todos.Task do
+      define :form_to_create_task, action: :create
+      define :form_to_update_task, action: :update  # ← Update form helper
+    end
+  end
+end
+
+# LiveView usage
+form = MyApp.Todos.form_to_update_task(task, actor: current_user)
+```
 
 ---
 

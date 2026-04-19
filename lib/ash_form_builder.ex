@@ -39,10 +39,16 @@ defmodule AshFormBuilder do
           defaults [:create, :read, :update, :destroy]
         end
 
+        # Create form - auto-infers fields from :create action
         form do
           action :create
-          # Fields are auto-inferred from action.accept
-          # many_to_many relationships automatically use :multiselect_combobox
+          submit_label "Create Clinic"
+        end
+
+        # Update form - separate configuration for :update action
+        form do
+          action :update
+          submit_label "Save Changes"
         end
       end
 
@@ -55,13 +61,24 @@ defmodule AshFormBuilder do
 
         resources do
           resource MyApp.Billing.Clinic do
+            # Form helpers for create and update actions
             define :form_to_create_clinic, action: :create
             define :form_to_update_clinic, action: :update
           end
         end
       end
 
+  Then use in your LiveView:
+
+      # Create form
+      form = MyApp.Billing.form_to_create_clinic(%{}, actor: current_user)
+
+      # Update form (passes existing record)
+      form = MyApp.Billing.form_to_update_clinic(clinic, actor: current_user)
+
   ## Creating a Form in LiveView
+
+  **Create Form:**
 
       defmodule MyAppWeb.ClinicLive.Form do
         use MyAppWeb, :live_view
@@ -72,7 +89,7 @@ defmodule AshFormBuilder do
           form = MyApp.Billing.Clinic.Form.for_create(
             actor: socket.assigns.current_user
           )
-          {:ok, assign(socket, form: form)}
+          {:ok, assign(socket, form: form, mode: :create)}
         end
 
         @impl true
@@ -81,6 +98,37 @@ defmodule AshFormBuilder do
           <.live_component
             module={AshFormBuilder.FormComponent}
             id="clinic-form"
+            resource={MyApp.Billing.Clinic}
+            form={@form}
+          />
+          \"\"\"
+        end
+
+        @impl true
+        def handle_info({:form_submitted, MyApp.Billing.Clinic, clinic}, socket) do
+          {:noreply, push_navigate(socket, to: ~p"/clinics/" <> clinic.id)}
+        end
+      end
+
+  **Update Form:**
+
+      defmodule MyAppWeb.ClinicLive.Edit do
+        use MyAppWeb, :live_view
+
+        @impl true
+        def mount(%{"id" => id}, _params, _session, socket) do
+          clinic = MyApp.Billing.get_clinic!(id, actor: socket.assigns.current_user)
+          # for_update/2 automatically preloads required relationships
+          form = MyApp.Billing.Clinic.Form.for_update(clinic, actor: socket.assigns.current_user)
+          {:ok, assign(socket, form: form, mode: :edit)}
+        end
+
+        @impl true
+        def render(assigns) do
+          ~H\"\"\"
+          <.live_component
+            module={AshFormBuilder.FormComponent}
+            id="clinic-edit-form"
             resource={MyApp.Billing.Clinic}
             form={@form}
           />
@@ -125,6 +173,15 @@ defmodule AshFormBuilder do
             value_key: :id
           ]
         end
+      end
+
+  **Update forms** automatically preload many_to_many relationships so existing selections are displayed:
+
+      def mount(%{"id" => id}, _params, _session, socket) do
+        clinic = MyApp.Billing.get_clinic!(id, actor: socket.assigns.current_user)
+        # for_update/2 auto-preloads required relationships
+        form = MyApp.Billing.Clinic.Form.for_update(clinic, actor: socket.assigns.current_user)
+        {:ok, assign(socket, form: form)}
       end
 
   Handle search in your LiveView:

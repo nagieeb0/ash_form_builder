@@ -44,11 +44,24 @@ defmodule AshFormBuilder.DomainIntegration do
           defaults [:create, :read, :update, :destroy]
         end
 
+        # CREATE form - auto-infers fields from :create action
         form do
           action :create
+          submit_label "Create Clinic"
 
           # Fields are auto-inferred from the action's accept list
           # many_to_many relationships automatically become :multiselect_combobox
+        end
+
+        # UPDATE form - separate configuration for :update action
+        form do
+          action :update
+          submit_label "Save Changes"
+
+          # Can customize fields differently for update forms
+          field :name do
+            hint "Changing the name will require re-verification"
+          end
         end
       end
 
@@ -78,6 +91,8 @@ defmodule AshFormBuilder.DomainIntegration do
 
   ### 3. Create the LiveView with Zero Boilerplate
 
+  **Create Form:**
+
       defmodule MyAppWeb.ClinicLive.Form do
         use MyAppWeb, :live_view
 
@@ -88,7 +103,7 @@ defmodule AshFormBuilder.DomainIntegration do
           # Use the generated Form helper with Domain Code Interface
           form = Billing.Clinic.Form.for_create(actor: socket.assigns.current_user)
 
-          {:ok, assign(socket, form: form)}
+          {:ok, assign(socket, form: form, mode: :create)}
         end
 
         @impl true
@@ -102,17 +117,60 @@ defmodule AshFormBuilder.DomainIntegration do
               id="clinic-form"
               resource={MyApp.Billing.Clinic}
               form={@form}
-              on_submit={fn result -> send(self(), {:clinic_created, result}) end}
             />
           </div>
           \"\"\"
         end
 
         @impl true
-        def handle_info({:clinic_created, clinic}, socket) do
+        def handle_info({:form_submitted, MyApp.Billing.Clinic, clinic}, socket) do
           {:noreply,
            socket
            |> put_flash(:info, "Clinic created successfully!")
+           |> push_navigate(to: ~p"/clinics/\#{clinic.id}")}
+        end
+      end
+
+  **Update Form:**
+
+      defmodule MyAppWeb.ClinicLive.Edit do
+        use MyAppWeb, :live_view
+
+        alias MyApp.Billing
+
+        @impl true
+        def mount(%{"id" => id}, _params, _session, socket) do
+          # Get existing record
+          clinic = Billing.get_clinic!(id, actor: socket.assigns.current_user)
+
+          # for_update/2 automatically preloads required relationships
+          # and populates the form with current values
+          form = Billing.Clinic.Form.for_update(clinic, actor: socket.assigns.current_user)
+
+          {:ok, assign(socket, form: form, mode: :edit)}
+        end
+
+        @impl true
+        def render(assigns) do
+          ~H\"\"\"
+          <div class="max-w-2xl mx-auto">
+            <h1 class="text-2xl font-bold mb-4">Edit Clinic</h1>
+
+            <.live_component
+              module={AshFormBuilder.FormComponent}
+              id="clinic-edit-form"
+              resource={MyApp.Billing.Clinic}
+              form={@form}
+            />
+          </div>
+          \"\"\"
+        end
+
+        @impl true
+        def handle_info({:form_submitted, MyApp.Billing.Clinic, clinic}, socket) do
+          {:noreply,
+           socket
+           |> put_flash(:info, "Clinic updated successfully!")
            |> push_navigate(to: ~p"/clinics/\#{clinic.id}")}
         end
       end
@@ -179,6 +237,7 @@ defmodule AshFormBuilder.DomainIntegration do
       defmodule MyApp.Billing.Clinic do
         # ... attributes and relationships
 
+        # Create form configuration
         form do
           action :create
 
@@ -194,9 +253,27 @@ defmodule AshFormBuilder.DomainIntegration do
             ]
           end
         end
+
+        # Update form - same combobox config, but existing selections auto-load
+        form do
+          action :update
+
+          field :doctors do
+            type :multiselect_combobox
+            opts [
+              search_event: "search_doctors",
+              search_param: "query",
+              debounce: 300,
+              label_key: :full_name,
+              value_key: :id
+            ]
+          end
+        end
       end
 
   ### LiveView with Search Handler
+
+  **Create Form:**
 
       defmodule MyAppWeb.ClinicLive.Form do
         use MyAppWeb, :live_view
@@ -250,6 +327,65 @@ defmodule AshFormBuilder.DomainIntegration do
         end
       end
 
+  **Update Form with Search:**
+
+      defmodule MyAppWeb.ClinicLive.Edit do
+        use MyAppWeb, :live_view
+
+        alias MyApp.Billing
+
+        @impl true
+        def mount(%{"id" => id}, _params, _session, socket) do
+          # Get existing clinic with relationships loaded
+          clinic = Billing.get_clinic!(id, actor: socket.assigns.current_user)
+
+          # for_update/2 auto-preloads required relationships
+          form = Billing.Clinic.Form.for_update(clinic, actor: socket.assigns.current_user)
+
+          {:ok,
+           socket
+           |> assign(form: form, mode: :edit)
+           |> assign(doctor_options: load_doctor_options(clinic.doctors))}
+        end
+
+        @impl true
+        def render(assigns) do
+          ~H\"\"\"
+          <div class="max-w-2xl mx-auto">
+            <h1 class="text-2xl font-bold mb-4">Edit Clinic</h1>
+
+            <.live_component
+              module={AshFormBuilder.FormComponent}
+              id="clinic-edit-form"
+              resource={MyApp.Billing.Clinic}
+              form={@form}
+              combobox_options={%{doctors: @doctor_options}}
+            />
+          </div>
+          \"\"\"
+        end
+
+        # Same search handler works for both create and update forms
+        @impl true
+        def handle_event("search_doctors", %{"query" => query}, socket) do
+          doctors =
+            Billing.Doctor
+            |> Ash.Query.filter(name_contains: query)
+            |> Billing.read!(actor: socket.assigns.current_user)
+
+          options = Enum.map(doctors, &{&1.full_name, &1.id})
+
+          {:noreply, push_event(socket, "update_combobox_options", %{
+            field: "doctors",
+            options: options
+          })}
+        end
+
+        defp load_doctor_options(doctors) do
+          Enum.map(doctors, &{&1.full_name, &1.id})
+        end
+      end
+
   ## Error Handling
 
   Ash validation errors are automatically rendered by the theme:
@@ -276,6 +412,8 @@ defmodule AshFormBuilder.DomainIntegration do
 
   ### Without (Manual Approach)
 
+  **Create Form:**
+
       def mount(_params, _session, socket) do
         # Manual form creation
         form =
@@ -297,7 +435,36 @@ defmodule AshFormBuilder.DomainIntegration do
         {:ok, assign(socket, form: form)}
       end
 
+  **Update Form:**
+
+      def mount(%{"id" => id}, _params, _session, socket) do
+        clinic = MyApp.Billing.get_clinic!(id, actor: socket.assigns.current_user)
+
+        # Manual preloading of relationships
+        clinic = Ash.load!(clinic, [:doctors], actor: socket.assigns.current_user)
+
+        form =
+          AshPhoenix.Form.for_update(
+            clinic,
+            :update,
+            actor: socket.assigns.current_user,
+            forms: [
+              doctors: [
+                type: :list,
+                resource: MyApp.Billing.Doctor,
+                create_action: :create,
+                update_action: :update
+              ]
+            ]
+          )
+          |> Phoenix.Component.to_form()
+
+        {:ok, assign(socket, form: form)}
+      end
+
   ### With (Domain-Driven)
+
+  **Create Form:**
 
       def mount(_params, _session, socket) do
         # All configuration comes from the DSL
@@ -306,11 +473,27 @@ defmodule AshFormBuilder.DomainIntegration do
         {:ok, assign(socket, form: form)}
       end
 
+  **Update Form:**
+
+      def mount(%{"id" => id}, _params, _session, socket) do
+        # for_update/2 handles everything:
+        # - Auto-preloads required relationships
+        # - Populates form with current values
+        # - Configures nested forms from DSL
+        form = MyApp.Billing.Clinic.Form.for_update(
+          MyApp.Billing.get_clinic!(id),
+          actor: socket.assigns.current_user
+        )
+
+        {:ok, assign(socket, form: form)}
+      end
+
   ## Debugging
 
-  Inspect the inferred schema:
+  Inspect the inferred schema for any action:
 
-      MyApp.Billing.Clinic.Form.schema()
+      # Schema for create form
+      MyApp.Billing.Clinic.Form.for_create().schema
       # => %{
       #   fields: [
       #     %{name: :name, type: :text_input, required: true, ...},
@@ -318,7 +501,16 @@ defmodule AshFormBuilder.DomainIntegration do
       #   ],
       #   nested_forms: [
       #     %{name: :doctors, cardinality: :many, ...}
-      #   ]
+      #   ],
+      #   required_preloads: [:doctors]
+      # }
+
+      # Schema for update form (includes required_preloads)
+      MyApp.Billing.Clinic.Form.schema()
+      # => %{
+      #   fields: [...],
+      #   nested_forms: [...],
+      #   required_preloads: [:doctors]  # Auto-detected many_to_many relationships
       # }
 
   Check nested forms config:
@@ -332,6 +524,17 @@ defmodule AshFormBuilder.DomainIntegration do
       #     update_action: :update
       #   ]
       # ]
+
+  ## Key Differences: Create vs Update Forms
+
+  | Aspect | Create Form | Update Form |
+  |--------|-------------|-------------|
+  | Helper | `for_create/1` | `for_update/2` |
+  | Record | Not required | First argument |
+  | Preloading | N/A | Auto-preloads `many_to_many` |
+  | Field Values | Empty/default | Populated from record |
+  | Submit Action | `:create` | `:update` |
+
   """
 
   # This module is documentation-only
