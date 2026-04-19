@@ -13,7 +13,7 @@ defmodule AshFormBuilder.Dsl do
       name: [
         type: :atom,
         required: true,
-        doc: "The attribute name on the resource."
+        doc: "The attribute name on the resource (or relationship name for many_to_many)."
       ],
       label: [
         type: :string,
@@ -26,6 +26,7 @@ defmodule AshFormBuilder.Dsl do
              :text_input,
              :textarea,
              :select,
+             :multiselect_combobox,
              :checkbox,
              :number,
              :email,
@@ -37,7 +38,13 @@ defmodule AshFormBuilder.Dsl do
              :tel
            ]},
         default: :text_input,
-        doc: "The HTML input type to render."
+        doc: """
+        The HTML input type to render.
+
+        Special types:
+        * `:multiselect_combobox` - For many_to_many relationships. Uses a searchable
+          multi-select combobox (MishkaChelekom). Supports `opts` for customization.
+        """
       ],
       placeholder: [
         type: :string,
@@ -51,7 +58,10 @@ defmodule AshFormBuilder.Dsl do
       options: [
         type: {:list, :any},
         default: [],
-        doc: "Options for `:select` fields. Accepts `[value]` or `[{label, value}]`."
+        doc: """
+        Options for `:select` or `:multiselect_combobox` fields.
+        Accepts `[value]`, `[{label, value}]`, or `{module, function, args}` for dynamic loading.
+        """
       ],
       class: [
         type: :string,
@@ -64,6 +74,31 @@ defmodule AshFormBuilder.Dsl do
       hint: [
         type: :string,
         doc: "Helper text rendered below the input."
+      ],
+      relationship: [
+        type: :atom,
+        doc: "For relationship fields: the relationship name (auto-inferred for many_to_many)."
+      ],
+      relationship_type: [
+        type: :atom,
+        doc: "The type of relationship (`:many_to_many`, `:has_many`, etc.). Auto-inferred."
+      ],
+      destination_resource: [
+        type: :atom,
+        doc: "For relationship fields: the related resource module. Auto-inferred."
+      ],
+      opts: [
+        type: :keyword_list,
+        default: [],
+        doc: """
+        Custom options for UI components. For `:multiselect_combobox`, supports:
+        * `search_event` - Event name for searching (e.g., "search_doctors")
+        * `search_param` - Query param name for search (default: "query")
+        * `debounce` - Search debounce in ms (default: 300)
+        * `preload_options` - Preload initial options as `[{label, value}]`
+        * `label_key` - Field to use as label (default: `:name`)
+        * `value_key` - Field to use as value (default: `:id`)
+        """
       ]
     ]
   }

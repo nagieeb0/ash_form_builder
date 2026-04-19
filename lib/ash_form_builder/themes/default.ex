@@ -4,6 +4,12 @@ defmodule AshFormBuilder.Themes.Default do
 
   Emits semantic HTML with minimal CSS class hooks — no framework dependency.
   Override via `config :ash_form_builder, :theme, MyApp.MyTheme`.
+
+  ## Field Types Supported
+
+  * `:text_input`, `:textarea`, `:select`, `:checkbox`, `:number`, `:email`, `:password`
+  * `:date`, `:datetime`, `:url`, `:tel`, `:hidden`
+  * `:multiselect_combobox` - Falls back to multi-select (themes should override)
   """
 
   @behaviour AshFormBuilder.Theme
@@ -11,11 +17,31 @@ defmodule AshFormBuilder.Themes.Default do
   use Phoenix.Component
 
   # ---------------------------------------------------------------------------
-  # Hidden field — no wrapper, no label
+  # Public API - render_field/2
   # ---------------------------------------------------------------------------
 
   @impl AshFormBuilder.Theme
-  def render_field(%{field: %AshFormBuilder.Field{type: :hidden}} = assigns) do
+  def render_field(assigns, opts \\ []) do
+    assigns = assign(assigns, :opts, opts)
+
+    case assigns.field.type do
+      :hidden -> render_hidden_field(assigns)
+      :multiselect_combobox -> render_multiselect_combobox(assigns)
+      _ -> render_standard_field(assigns)
+    end
+  end
+
+  @impl AshFormBuilder.Theme
+  def render_nested(_assigns) do
+    # Return nil to use default nested form rendering in FormRenderer
+    nil
+  end
+
+  # ---------------------------------------------------------------------------
+  # Hidden field — no wrapper, no label
+  # ---------------------------------------------------------------------------
+
+  defp render_hidden_field(assigns) do
     ~H"""
     <input
       type="hidden"
@@ -27,10 +53,62 @@ defmodule AshFormBuilder.Themes.Default do
   end
 
   # ---------------------------------------------------------------------------
+  # Multiselect combobox (fallback implementation)
+  # ---------------------------------------------------------------------------
+
+  defp render_multiselect_combobox(assigns) do
+    # Default theme uses a multi-select as fallback
+    # MishkaTheme provides the full combobox implementation
+    ~H"""
+    <div class={["form-group", @field.wrapper_class]}>
+      <label
+        :if={@field.label}
+        for={Phoenix.HTML.Form.input_id(@form, @field.name)}
+        class="form-label"
+      >
+        {@field.label}
+        <span :if={@field.required} aria-hidden="true" class="required-mark"> *</span>
+      </label>
+
+      <select
+        id={Phoenix.HTML.Form.input_id(@form, @field.name)}
+        name={Phoenix.HTML.Form.input_name(@form, @field.name) <> "[]"}
+        class={["form-select", @field.class]}
+        multiple
+        size="4"
+      >
+        <option value="">— select —</option>
+        <option
+          :for={{label, value} <- normalize_options(@field.options)}
+          value={to_string(value)}
+          selected={
+            to_string(Phoenix.HTML.Form.input_value(@form, @field.name)) == to_string(value)
+          }
+        >
+          {label}
+        </option>
+      </select>
+
+      <p :if={@field.hint} class="form-hint">{@field.hint}</p>
+
+      <p
+        :for={
+          {msg, _opts} <-
+            Keyword.get_values((@form[@field.name] || %{errors: []}).errors, :message)
+        }
+        class="form-error"
+      >
+        {msg}
+      </p>
+    </div>
+    """
+  end
+
+  # ---------------------------------------------------------------------------
   # All other fields — wrapper + label + input + hint + errors
   # ---------------------------------------------------------------------------
 
-  def render_field(assigns) do
+  defp render_standard_field(assigns) do
     ~H"""
     <div class={["form-group", @field.wrapper_class]}>
       <label

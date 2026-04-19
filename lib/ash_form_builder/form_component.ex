@@ -75,6 +75,7 @@ defmodule AshFormBuilder.FormComponent do
           entities={@entities}
           target={@myself}
           wrapper_class={@wrapper_class}
+          theme_opts={[target: @myself]}
         />
 
         <div class="form-actions">

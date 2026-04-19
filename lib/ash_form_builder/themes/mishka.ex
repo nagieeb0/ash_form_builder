@@ -55,7 +55,17 @@ defmodule AshFormBuilder.Themes.Mishka do
   # ---------------------------------------------------------------------------
 
   @impl AshFormBuilder.Theme
-  def render_field(%{field: %AshFormBuilder.Field{type: :hidden}} = assigns) do
+  def render_field(assigns, _opts \\ []) do
+    case assigns.field.type do
+      :hidden -> render_hidden(assigns)
+      :textarea -> render_textarea(assigns)
+      :select -> render_select(assigns)
+      :checkbox -> render_checkbox(assigns)
+      _ -> render_default(assigns)
+    end
+  end
+
+  defp render_hidden(assigns) do
     ~H"""
     <input
       type="hidden"
@@ -66,11 +76,7 @@ defmodule AshFormBuilder.Themes.Mishka do
     """
   end
 
-  # ---------------------------------------------------------------------------
-  # Textarea
-  # ---------------------------------------------------------------------------
-
-  def render_field(%{field: %AshFormBuilder.Field{type: :textarea}} = assigns) do
+  defp render_textarea(assigns) do
     ~H"""
     <%!-- Replace with: <.textarea_field .../> once component is generated --%>
     <div class="mb-4">
@@ -95,7 +101,7 @@ defmodule AshFormBuilder.Themes.Mishka do
   # Select / dropdown
   # ---------------------------------------------------------------------------
 
-  def render_field(%{field: %AshFormBuilder.Field{type: :select}} = assigns) do
+  defp render_select(assigns) do
     ~H"""
     <%!-- Replace with: <.native_select .../> once component is generated --%>
     <div class="mb-4">
@@ -129,7 +135,7 @@ defmodule AshFormBuilder.Themes.Mishka do
   # Checkbox / toggle
   # ---------------------------------------------------------------------------
 
-  def render_field(%{field: %AshFormBuilder.Field{type: :checkbox}} = assigns) do
+  defp render_checkbox(assigns) do
     ~H"""
     <%!-- Replace with: <.toggle_field .../> or <.checkbox_field .../> --%>
     <div class="mb-4 flex items-center gap-2">
@@ -155,7 +161,7 @@ defmodule AshFormBuilder.Themes.Mishka do
   # All other inputs (text, number, email, password, date, url, tel)
   # ---------------------------------------------------------------------------
 
-  def render_field(assigns) do
+  defp render_default(assigns) do
     ~H"""
     <%!-- Replace with: <.text_field .../>, <.number_field .../>, etc. --%>
     <div class="mb-4">

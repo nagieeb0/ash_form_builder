@@ -17,6 +17,7 @@ defmodule AshFormBuilder.Test.Resources do
     attributes do
       uuid_primary_key(:id)
       attribute(:name, :string, allow_nil?: false, public?: true)
+      attribute(:post_id, :uuid, public?: true)
     end
 
     actions do
