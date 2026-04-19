@@ -71,12 +71,10 @@ defmodule AshFormBuilder.MixProject do
       authors: ["Nagieeb"],
       extras: [
         "README.md",
-        "CHANGELOG.md",
-        "guides/todo_app_integration.exs",
-        "guides/relationships_guide.exs"
+        "CHANGELOG.md"
+        # Guides available in package but not rendered in hexdocs
       ],
       groups_for_extras: [
-        Guides: ["guides/todo_app_integration.exs", "guides/relationships_guide.exs"],
         "": ["README.md", "CHANGELOG.md"]
       ],
       groups_for_modules: [
