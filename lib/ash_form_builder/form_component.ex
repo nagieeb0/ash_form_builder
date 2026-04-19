@@ -102,13 +102,17 @@ defmodule AshFormBuilder.FormComponent do
 
   @impl Phoenix.LiveComponent
   def handle_event("add_form", %{"path" => path}, socket) do
-    form = AshPhoenix.Form.add_form(socket.assigns.form.source, path)
+    # Support deeply nested paths like "subtasks[0].items[1]"
+    parsed_path = parse_nested_path(path)
+    form = AshPhoenix.Form.add_form(socket.assigns.form.source, parsed_path)
     {:noreply, assign(socket, form: to_form(form))}
   end
 
   @impl Phoenix.LiveComponent
   def handle_event("remove_form", %{"path" => path}, socket) do
-    form = AshPhoenix.Form.remove_form(socket.assigns.form.source, path)
+    # Support deeply nested paths
+    parsed_path = parse_nested_path(path)
+    form = AshPhoenix.Form.remove_form(socket.assigns.form.source, parsed_path)
     {:noreply, assign(socket, form: to_form(form))}
   end
 
@@ -116,7 +120,7 @@ defmodule AshFormBuilder.FormComponent do
   def handle_event("remove_combobox_item", %{"field" => field, "item" => item}, socket) do
     # Remove a selected item from a combobox field
     form = socket.assigns.form.source
-    current_values = AshPhoenix.Form.value(form, field) || []
+    current_values = AshPhoenix.Form.value(form, String.to_atom(field)) || []
     new_values = Enum.reject(current_values, &to_string(&1) == item)
     form = AshPhoenix.Form.validate(form, %{field => new_values})
     {:noreply, assign(socket, form: to_form(form))}
@@ -133,8 +137,7 @@ defmodule AshFormBuilder.FormComponent do
     field = String.to_atom(field)
     action = String.to_atom(action)
 
-    # The creatable_value contains the label like "Create \"New Tag\""
-    # We need to extract the actual value from the quoted string
+    # Extract value from creatable label (e.g., "Create \"New Tag\"" → "New Tag")
     new_item_value = extract_creatable_value(creatable_value)
 
     # Create the new record using Ash
@@ -150,10 +153,9 @@ defmodule AshFormBuilder.FormComponent do
 
       {:error, changeset_or_error} ->
         # Log the error and return the form unchanged
-        # In production, you might want to show a toast or inline error
         require Logger
         Logger.error("Failed to create combobox item: #{inspect(changeset_or_error)}")
-        {:noreply, socket}
+        {:noreply, put_flash(socket, :error, "Could not create item: validation failed")}
     end
   end
 
@@ -177,6 +179,29 @@ defmodule AshFormBuilder.FormComponent do
     case socket.assigns[:on_submit] do
       nil -> send(self(), {:form_submitted, socket.assigns.resource, result})
       callback when is_function(callback, 1) -> callback.(result)
+    end
+  end
+
+  @doc false
+  def parse_nested_path(path_string) do
+    # Convert "subtasks[0].items[1]" to proper path structure
+    # Supports deeply nested paths (3+ levels)
+    path_string
+    |> String.split(".")
+    |> Enum.map(&parse_path_segment/1)
+  end
+
+  defp parse_path_segment(segment) do
+    # Parse segments like "field[0]" or "field"
+    case Regex.run(~r/^(\w+)(?:\[(\d+)\])?$/, segment) do
+      [_, field, nil] ->
+        String.to_atom(field)
+
+      [_, field, index] ->
+        {String.to_atom(field), String.to_integer(index)}
+
+      _ ->
+        String.to_atom(segment)
     end
   end
 

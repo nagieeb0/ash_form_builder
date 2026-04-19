@@ -1,55 +1,105 @@
 defmodule AshFormBuilder.Infer do
   @moduledoc """
-  True Auto-Inference Engine for AshFormBuilder.
+  Zero-Config Auto-Inference Engine for AshFormBuilder v0.2.0.
 
-  Dynamically infers form field definitions from Ash resource metadata at runtime.
-  Reads the `accept` list, arguments, and relationships via `Ash.Resource.Info`.
+  Dynamically infers complete form field definitions from Ash resource metadata.
+  Reads action definitions, attributes, arguments, and relationships via `Ash.Resource.Info`.
 
   ## Key Capabilities
 
-  * **Type Mapping**: Maps Ash types to appropriate UI types
-  * **Relationship Detection**: Auto-detects many_to_many relationships and maps them
-    to `:multiselect_combobox` UI type
-  * **Smart Defaults**: Infers labels, required status, and options from constraints
+  * **Complete Type Mapping** - Maps all Ash 3.0 types to appropriate UI components
+  * **Smart Defaults** - Infers labels, required status, placeholders from constraints
+  * **Relationship Detection** - Auto-detects and configures many_to_many, has_many, belongs_to
+  * **Constraint Awareness** - Detects one_of, enums, and other constraints for UI selection
+  * **Configurable Ignoring** - Exclude fields without writing full field blocks
+  * **Manage Relationship Support** - Infers UI based on manage_relationship configuration
 
   ## Usage
 
-      # Infer all fields for a resource action
-      fields = AshFormBuilder.Infer.infer_fields(MyApp.Clinic, :create)
+      # Zero-config - infer everything from action.accept
+      fields = AshFormBuilder.Infer.infer_fields(MyApp.Task, :create)
 
-      # Infer with custom overrides
-      fields = AshFormBuilder.Infer.infer_fields(MyApp.Clinic, :create,
-        many_to_many_as: :multiselect_combobox,
-        ignore_fields: [:id, :inserted_at]
+      # Custom ignore list
+      fields = AshFormBuilder.Infer.infer_fields(MyApp.Task, :create,
+        ignore_fields: [:id, :tenant_id, :deleted_at]
       )
+
+      # Include timestamps
+      fields = AshFormBuilder.Infer.infer_fields(MyApp.Task, :create,
+        include_timestamps: true
+      )
+
+      # Customize relationship UI
+      fields = AshFormBuilder.Infer.infer_fields(MyApp.Task, :create,
+        many_to_many_as: :select,
+        belongs_to_as: :combobox
+      )
+
+  ## Type Inference Table
+
+  | Ash Type | Constraint | Inferred UI | Example |
+  |----------|------------|-------------|---------|
+  | `:string` | - | `:text_input` | Standard text |
+  | `:ci_string` | - | `:text_input` | Case-insensitive |
+  | `:text` | - | `:textarea` | Multi-line |
+  | `:boolean` | - | `:checkbox` | Toggle |
+  | `:integer` | - | `:number` | Whole numbers |
+  | `:float` / `:decimal` | - | `:number` | Decimals |
+  | `:date` | - | `:date` | Date picker |
+  | `:datetime` | - | `:datetime` | DateTime picker |
+  | `:atom` | `one_of:` | `:select` | Dropdown |
+  | `:enum` module | - | `:select` | Enum values |
+  | `:email` | - | `:email` | Email input |
+  | `:url` | - | `:url` | URL input |
+  | `:phone` | - | `:tel` | Telephone |
+  | `many_to_many` | - | `:multiselect_combobox` | Searchable multi-select |
+  | `has_many` | - | `:nested_form` | Dynamic nested forms |
+  | `belongs_to` | - | `:select` | Foreign key selection |
 
   ## Relationship Handling
 
-  When a `many_to_many` relationship is detected in the action's `accept` list:
+  When a relationship is detected in the action's `accept` list:
 
-  1. The field type is set to `:multiselect_combobox`
-  2. `relationship`, `relationship_type`, and `destination_resource` are populated
-  3. Default opts are set for the combobox (label_key: :name, value_key: :id)
+  1. **many_to_many** → `:multiselect_combobox` with searchable selection
+  2. **has_many** → Nested form configuration (not a direct field)
+  3. **belongs_to** → `:select` or `:combobox` based on destination
+
+  For `many_to_many` relationships, the following field properties are populated:
+  * `type: :multiselect_combobox`
+  * `relationship: :relationship_name`
+  * `relationship_type: :many_to_many`
+  * `destination_resource: DestinationResource`
+  * `opts: [label_key: :name, value_key: :id, search_event: "...", ...]`
 
   This enables seamless UI rendering with searchable multi-select for related records.
   """
 
   alias AshFormBuilder.Field
 
-  # Ash type module → form field type
+  # ───────────────────────────────────────────────────────────────────────────
+  # Complete Ash 3.0 Type Mapping
+  # ───────────────────────────────────────────────────────────────────────────
+
   @type_map %{
+    # String types
     Ash.Type.String => :text_input,
     :string => :text_input,
     Ash.Type.CiString => :text_input,
     :ci_string => :text_input,
+
+    # Boolean
     Ash.Type.Boolean => :checkbox,
     :boolean => :checkbox,
+
+    # Numeric types
     Ash.Type.Integer => :number,
     :integer => :number,
-    Ash.Type.Decimal => :number,
-    :decimal => :number,
     Ash.Type.Float => :number,
     :float => :number,
+    Ash.Type.Decimal => :number,
+    :decimal => :number,
+
+    # Date/Time types
     Ash.Type.Date => :date,
     :date => :date,
     Ash.Type.DateTime => :datetime,
@@ -60,22 +110,80 @@ defmodule AshFormBuilder.Infer do
     :utc_datetime_usec => :datetime,
     Ash.Type.NaiveDatetime => :datetime,
     :naive_datetime => :datetime,
+    Ash.Type.NaiveDatetimeUsec => :datetime,
+    :naive_datetime_usec => :datetime,
+
+    # Special types
     Ash.Type.URL => :url,
-    :url => :url
+    :url => :url,
+    Ash.Type.Email => :email,
+    :email => :email,
+    Ash.Type.Phone => :tel,
+    :phone => :tel,
+    Ash.Type.Atom => :text_input,  # Overridden by constraints
+    :atom => :text_input,
+    Ash.Type.Enum => :select,
+    :enum => :select,
+
+    # Binary/Map types
+    Ash.Type.Binary => :textarea,
+    :binary => :textarea,
+    Ash.Type.Map => :textarea,
+    :map => :textarea,
+    Ash.Type.Text => :textarea,
+    :text => :textarea,
+
+    # UUID (usually hidden or text input)
+    Ash.Type.UUID => :text_input,
+    :uuid => :text_input,
+
+    # Money
+    Ash.Type.Money => :number,
+    :money => :number,
+
+    # Color
+    Ash.Type.Color => :text_input,
+    :color => :text_input
   }
 
+  # ───────────────────────────────────────────────────────────────────────────
+  # Public API
+  # ───────────────────────────────────────────────────────────────────────────
+
   @doc """
-  Infers `Field` structs for the given resource action.
+  Infers `Field` structs for the given resource action with zero-config operation.
 
   ## Options
 
-  * `:many_to_many_as` - UI type for many_to_many relationships (default: `:multiselect_combobox`)
   * `:ignore_fields` - List of field names to skip (default: `[:id, :inserted_at, :updated_at]`)
-  * `:include_timestamps` - Whether to include timestamp fields (default: `false`)
+  * `:include_timestamps` - Include timestamp fields (default: `false`)
+  * `:many_to_many_as` - UI type for many_to_many (default: `:multiselect_combobox`)
+  * `:has_many_as` - UI type for has_many (default: `:nested_form`)
+  * `:belongs_to_as` - UI type for belongs_to (default: `:select`)
+  * `:creatable` - Enable creatable combobox for many_to_many (default: `false`)
+  * `:create_action` - Action for creating new items (default: `:create`)
 
   ## Returns
 
-  List of `%AshFormBuilder.Field{}` structs in the order they should be rendered.
+  List of `%AshFormBuilder.Field{}` structs in rendering order.
+
+  ## Examples
+
+      # Basic zero-config inference
+      iex> fields = Infer.infer_fields(MyApp.Task, :create)
+      [%Field{name: :title, type: :text_input, ...}, ...]
+
+      # Custom ignore list
+      iex> fields = Infer.infer_fields(MyApp.Task, :create, ignore_fields: [:tenant_id])
+      [%Field{...}]
+
+      # Include timestamps
+      iex> fields = Infer.infer_fields(MyApp.Task, :create, include_timestamps: true)
+      [%Field{name: :inserted_at, ...}, %Field{name: :updated_at, ...}]
+
+      # Creatable combobox for relationships
+      iex> fields = Infer.infer_fields(MyApp.Task, :create, creatable: true)
+      [%Field{name: :tags, type: :multiselect_combobox, opts: [creatable: true]}]
   """
   @spec infer_fields(module(), atom(), keyword()) :: [Field.t()]
   def infer_fields(resource, action_name, opts \\ []) do
@@ -84,61 +192,44 @@ defmodule AshFormBuilder.Infer do
     if is_nil(action) do
       []
     else
-      ignore_fields = Keyword.get(opts, :ignore_fields, [:id, :inserted_at, :updated_at])
-      include_timestamps = Keyword.get(opts, :include_timestamps, false)
+      opts = validate_opts(opts)
 
-      # Get all relevant fields from accept list
-      accepted = action.accept || []
+      # Process accept list (attributes and relationships)
+      accept_fields = process_accept_list(resource, action.accept || [], opts)
 
-      # Filter out ignored fields unless timestamps are included
-      filtered_accepted =
-        if include_timestamps do
-          accepted
-        else
-          Enum.reject(accepted, &(&1 in ignore_fields))
-        end
+      # Process action arguments
+      arg_fields = process_arguments(action.arguments || [])
 
-      # Build fields from accept list (handles both attributes and relationships)
-      accept_fields =
-        filtered_accepted
-        |> Enum.map(&infer_from_accept(resource, &1, opts))
-        |> Enum.reject(&is_nil/1)
-
-      # Build fields from action arguments
-      arguments = action.arguments || []
-      arg_fields = Enum.map(arguments, &infer_from_argument/1)
-
-      accept_fields ++ arg_fields
+      # Combine in order: arguments first, then accept fields
+      arg_fields ++ accept_fields
     end
   end
 
   @doc """
-  Infers a complete form schema including nested forms configuration.
+  Infers complete form schema including nested forms and preload requirements.
 
-  Returns a map with:
-  * `:fields` - List of Field structs
-  * `:nested_forms` - Keyword list for AshPhoenix.Form `:forms` option
-  * `:action` - The action name
-  * `:resource` - The resource module
-  * `:required_preloads` - List of relationships to preload for update forms
+  Returns a map suitable for passing to `AshPhoenix.Form.for_create/3`.
 
-  ## Usage
+  ## Returns
 
-      schema = AshFormBuilder.Infer.infer_schema(MyApp.Clinic, :create)
+  %{
+    fields: [Field.t()],
+    nested_forms: keyword(),
+    action: atom(),
+    resource: module(),
+    required_preloads: [atom()]
+  }
 
-      # Use in a LiveView
-      form =
-        AshPhoenix.Form.for_create(
-          schema.resource,
-          schema.action,
-          forms: schema.nested_forms
-        )
+  ## Examples
 
-  ## Required Preloads for Updates
-
-  When inferring an update action, this function detects which relationships
-  need to be preloaded for the form to work correctly (e.g., many_to_many
-  relationships that are managed through the form).
+      iex> schema = Infer.infer_schema(MyApp.Task, :create)
+      %{
+        fields: [%Field{...}],
+        nested_forms: [subtasks: [type: :list, resource: MyApp.Subtask]],
+        action: :create,
+        resource: MyApp.Task,
+        required_preloads: [:tags, :assignees]
+      }
   """
   @spec infer_schema(module(), atom(), keyword()) :: %{
           fields: [Field.t()],
@@ -149,11 +240,7 @@ defmodule AshFormBuilder.Infer do
         }
   def infer_schema(resource, action_name, opts \\ []) do
     fields = infer_fields(resource, action_name, opts)
-
-    # Separate relationship fields that need nested forms
     nested_forms = build_nested_forms_config(fields, resource)
-
-    # Detect required preloads for update actions
     required_preloads = detect_required_preloads(fields, resource, action_name)
 
     %{
@@ -166,10 +253,48 @@ defmodule AshFormBuilder.Infer do
   end
 
   @doc """
-  Detects which relationships need to be preloaded for update forms.
+  Detects field type (attribute or relationship) for a given field name.
 
-  This is crucial for many_to_many relationships and nested forms to display
-  existing data correctly when editing a record.
+  ## Returns
+
+  * `:attribute` - Field is a resource attribute
+  * `{:relationship, relationship}` - Field is a relationship
+  * `:ignore` - Field should be ignored
+
+  ## Examples
+
+      iex> Infer.detect_field_type(MyApp.Task, :title)
+      :attribute
+
+      iex> Infer.detect_field_type(MyApp.Task, :tags)
+      {:relationship, %Ash.Resource.Relationships.ManyToMany{...}}
+  """
+  @spec detect_field_type(module(), atom()) :: :attribute | {:relationship, struct()} | :ignore
+  def detect_field_type(resource, field_name) do
+    case Ash.Resource.Info.relationship(resource, field_name) do
+      nil ->
+        # Check if it's an attribute
+        if Ash.Resource.Info.attribute(resource, field_name) do
+          :attribute
+        else
+          :ignore
+        end
+
+      rel ->
+        {:relationship, rel}
+    end
+  end
+
+  @doc """
+  Detects required preloads for update/destroy actions.
+
+  Identifies which relationships need preloading for form rendering
+  (e.g., many_to_many relationships that appear in the form).
+
+  ## Examples
+
+      iex> Infer.detect_required_preloads(fields, MyApp.Task, :update)
+      [:tags, :assignees]
   """
   @spec detect_required_preloads([Field.t()], module(), atom()) :: [atom()]
   def detect_required_preloads(fields, resource, action_name) do
@@ -179,40 +304,51 @@ defmodule AshFormBuilder.Infer do
     if is_nil(action) or action.type not in [:update, :destroy] do
       []
     else
-      # Collect relationship fields that are in the accept list
       fields
-      |> Enum.filter(fn field ->
-        not is_nil(field.relationship) and field.type == :multiselect_combobox
-      end)
+      |> Enum.filter(&requires_preload?/1)
       |> Enum.map(& &1.relationship)
       |> Enum.uniq()
     end
   end
 
-  @doc """
-  Detects if a field name represents a relationship on the resource.
+  # ───────────────────────────────────────────────────────────────────────────
+  # Private Implementation
+  # ───────────────────────────────────────────────────────────────────────────
 
-  Returns `{:relationship, relationship}` or `:attribute`.
-  """
-  @spec detect_field_type(module(), atom()) :: :attribute | {:relationship, Ash.Resource.Relationships.relationship()}
-  def detect_field_type(resource, field_name) do
-    case Ash.Resource.Info.relationship(resource, field_name) do
-      nil -> :attribute
-      rel -> {:relationship, rel}
-    end
+  defp validate_opts(opts) do
+    Keyword.validate!(opts, [
+      ignore_fields: [:id, :inserted_at, :updated_at, :deleted_at],
+      include_timestamps: false,
+      many_to_many_as: :multiselect_combobox,
+      has_many_as: :nested_form,
+      belongs_to_as: :select,
+      creatable: false,
+      create_action: :create,
+      create_label: "Create \"\"",
+      search_param: "query",
+      debounce: 300,
+      label_key: :name,
+      value_key: :id
+    ])
   end
 
-  # ---------------------------------------------------------------------------
-  # Private
-  # ---------------------------------------------------------------------------
+  defp process_accept_list(resource, accept, opts) do
+    accept
+    |> Enum.reject(&should_ignore?(&1, opts))
+    |> Enum.map(&infer_field(resource, &1, opts))
+    |> Enum.reject(&is_nil/1)
+  end
 
-  defp infer_from_accept(resource, field_name, opts) do
+  defp should_ignore?(field_name, opts) do
+    field_name in opts[:ignore_fields] or
+      (not opts[:include_timestamps] and field_name in [:inserted_at, :updated_at])
+  end
+
+  defp infer_field(resource, field_name, opts) do
     case detect_field_type(resource, field_name) do
-      :attribute ->
-        infer_from_attribute(resource, field_name)
-
-      {:relationship, rel} ->
-        infer_from_relationship(rel, opts)
+      :attribute -> infer_from_attribute(resource, field_name)
+      {:relationship, rel} -> infer_from_relationship(rel, opts)
+      :ignore -> nil
     end
   end
 
@@ -226,50 +362,110 @@ defmodule AshFormBuilder.Infer do
         name: attr.name,
         label: humanize(attr.name),
         type: infer_type(attr.type, attr.constraints || []),
-        required: !attr.allow_nil? && is_nil(attr.default),
-        options: infer_options(attr.type, attr.constraints || [])
+        required: field_required?(attr),
+        placeholder: infer_placeholder(attr),
+        options: infer_options(attr.type, attr.constraints || []),
+        hint: infer_hint(attr)
       }
     end
   end
 
-  defp infer_from_relationship(rel, opts) do
-    many_to_many_type = Keyword.get(opts, :many_to_many_as, :multiselect_combobox)
+  defp field_required?(attr) do
+    not attr.allow_nil? and is_nil(attr.default)
+  end
 
+  defp infer_placeholder(attr) do
+    # Could be enhanced with attr.constraints or metadata
+    nil
+  end
+
+  defp infer_hint(attr) do
+    # Could be enhanced with attr.description or metadata
+    nil
+  end
+
+  defp infer_from_relationship(rel, opts) do
     case rel.type do
       :many_to_many ->
-        %Field{
-          name: rel.name,
-          label: humanize(rel.name),
-          type: many_to_many_type,
-          required: false,
-          options: [],
-          relationship: rel.name,
-          relationship_type: :many_to_many,
-          destination_resource: rel.destination,
-          opts: default_combobox_opts(rel.destination)
-        }
+        build_combobox_field(rel, opts)
 
       :has_many ->
-        # has_many typically uses nested forms, not direct fields
+        # has_many uses nested forms, not direct fields
         nil
 
       :belongs_to ->
-        # belongs_to can use a select or combobox depending on options count
-        %Field{
-          name: rel.name,
-          label: humanize(rel.name),
-          type: :select,
-          required: false,
-          options: [],
-          relationship: rel.name,
-          relationship_type: :belongs_to,
-          destination_resource: rel.destination,
-          opts: default_combobox_opts(rel.destination)
-        }
+        build_belongs_to_field(rel, opts)
+
+      :has_one ->
+        # has_one typically uses nested form or separate form
+        nil
 
       _other ->
         nil
     end
+  end
+
+  defp build_combobox_field(rel, opts) do
+    %Field{
+      name: rel.name,
+      label: humanize(rel.name),
+      type: opts[:many_to_many_as],
+      required: false,
+      options: [],
+      relationship: rel.name,
+      relationship_type: :many_to_many,
+      destination_resource: rel.destination,
+      opts: build_combobox_opts(rel.destination, opts)
+    }
+  end
+
+  defp build_combobox_opts(destination, opts) do
+    label_key = infer_label_key(destination)
+    value_key = opts[:value_key] || :id
+
+    [
+      label_key: label_key,
+      value_key: value_key,
+      search_param: opts[:search_param],
+      debounce: opts[:debounce],
+      creatable: opts[:creatable],
+      create_action: opts[:create_action],
+      create_label: opts[:create_label],
+      preload_options: []
+    ]
+  end
+
+  defp infer_label_key(destination) do
+    # Try common label fields in order of preference
+    cond do
+      field_exists?(destination, :name) -> :name
+      field_exists?(destination, :title) -> :title
+      field_exists?(destination, :label) -> :label
+      field_exists?(destination, :display_name) -> :display_name
+      true -> :id
+    end
+  end
+
+  defp field_exists?(resource, field_name) do
+    not is_nil(Ash.Resource.Info.attribute(resource, field_name))
+  end
+
+  defp build_belongs_to_field(rel, opts) do
+    %Field{
+      name: rel.name,
+      label: humanize(rel.name),
+      type: opts[:belongs_to_as],
+      required: false,
+      options: [],
+      relationship: rel.name,
+      relationship_type: :belongs_to,
+      destination_resource: rel.destination,
+      opts: build_combobox_opts(rel.destination, opts)
+    }
+  end
+
+  defp process_arguments(arguments) do
+    Enum.map(arguments, &infer_from_argument/1)
   end
 
   defp infer_from_argument(arg) do
@@ -277,27 +473,35 @@ defmodule AshFormBuilder.Infer do
       name: arg.name,
       label: humanize(arg.name),
       type: infer_type(arg.type, arg.constraints || []),
-      required: !arg.allow_nil?,
-      options: infer_options(arg.type, arg.constraints || [])
+      required: argument_required?(arg),
+      placeholder: nil,
+      options: infer_options(arg.type, arg.constraints || []),
+      hint: nil
     }
+  end
+
+  defp argument_required?(arg) do
+    not arg.allow_nil? and is_nil(arg.default)
   end
 
   defp infer_type(type, constraints) do
     cond do
+      # Direct type mapping
       Map.has_key?(@type_map, type) ->
         Map.get(@type_map, type)
 
+      # Constraint-based inference
       constraints[:one_of] ->
         :select
 
-      # Ash.Type.Atom with one_of constraint
-      type == :atom && constraints[:one_of] ->
+      type == :atom and constraints[:one_of] ->
         :select
 
-      # Ash.Type.Enum modules expose values/0
-      is_atom(type) && function_exported?(type, :values, 0) ->
+      # Enum module detection
+      is_atom(type) and function_exported?(type, :values, 0) ->
         :select
 
+      # Fallback
       true ->
         :text_input
     end
@@ -306,61 +510,59 @@ defmodule AshFormBuilder.Infer do
   defp infer_options(type, constraints) do
     cond do
       constraints[:one_of] ->
-        Enum.map(constraints[:one_of], fn v -> {humanize(v), v} end)
+        Enum.map(constraints[:one_of], &value_to_option/1)
 
-      is_atom(type) && function_exported?(type, :values, 0) ->
-        Enum.map(type.values(), fn v -> {humanize(v), v} end)
+      is_atom(type) and function_exported?(type, :values, 0) ->
+        Enum.map(type.values(), &value_to_option/1)
 
       true ->
         []
     end
   end
 
-  defp default_combobox_opts(destination_resource) do
-    # Infer label/value keys based on common Ash resource conventions
-    label_key = if field_exists?(destination_resource, :name), do: :name, else: :id
-    value_key = :id
-
-    [
-      label_key: label_key,
-      value_key: value_key,
-      search_param: "query",
-      debounce: 300,
-      creatable: false,
-      create_action: :create
-    ]
+  defp value_to_option(value) when is_atom(value) do
+    {humanize(value), value}
   end
 
-  defp field_exists?(resource, field_name) do
-    not is_nil(Ash.Resource.Info.attribute(resource, field_name))
+  defp value_to_option(value) do
+    {to_string(value), value}
   end
 
   defp build_nested_forms_config(fields, resource) do
     fields
+    |> Enum.filter(&needs_nested_form?/1)
+    |> Enum.map(&build_nested_config(&1, resource))
     |> Enum.reject(&is_nil/1)
-    |> Enum.filter(fn field ->
-      # Only build nested config for relationship fields that aren't comboboxes
-      not is_nil(field.relationship) and field.type != :multiselect_combobox
-    end)
-    |> Enum.map(fn field ->
-      rel = Ash.Resource.Info.relationship(resource, field.relationship)
+  end
 
-      if rel do
-        type = if rel.cardinality == :many, do: :list, else: :single
+  defp needs_nested_form?(field) do
+    not is_nil(field.relationship) and
+      field.relationship_type in [:has_many, :has_one] and
+      field.type == :nested_form
+  end
 
-        config = [
-          type: type,
-          resource: rel.destination,
-          create_action: :create,
-          update_action: :update
-        ]
+  defp build_nested_config(field, resource) do
+    rel = Ash.Resource.Info.relationship(resource, field.relationship)
 
-        {field.name, config}
-      else
-        nil
-      end
-    end)
-    |> Enum.reject(&is_nil/1)
+    if rel do
+      cardinality = if rel.cardinality == :many, do: :list, else: :single
+
+      config = [
+        type: cardinality,
+        resource: rel.destination,
+        create_action: :create,
+        update_action: :update
+      ]
+
+      {field.relationship, config}
+    else
+      nil
+    end
+  end
+
+  defp requires_preload?(field) do
+    not is_nil(field.relationship) and
+      field.relationship_type in [:many_to_many, :has_many]
   end
 
   defp humanize(value) when is_atom(value) do

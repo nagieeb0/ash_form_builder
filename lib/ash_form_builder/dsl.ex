@@ -180,6 +180,30 @@ defmodule AshFormBuilder.Dsl do
         default: "Submit",
         doc: "Label for the submit button."
       ],
+      ignore_fields: [
+        type: {:list, :atom},
+        default: [:id, :inserted_at, :updated_at],
+        doc: "Fields to exclude from auto-inference. Use this to hide fields without writing full field blocks."
+      ],
+      field_order: [
+        type: {:list, :atom},
+        doc: "Custom ordering for fields. Fields listed first appear first. Fields not listed appear after in default order."
+      ],
+      include_timestamps: [
+        type: :boolean,
+        default: false,
+        doc: "Whether to include :inserted_at and :updated_at fields. Set to true if you need timestamp inputs."
+      ],
+      creatable: [
+        type: :boolean,
+        default: false,
+        doc: "Enable creatable combobox for all many_to_many relationships. Individual fields can override this."
+      ],
+      create_action: [
+        type: :atom,
+        default: :create,
+        doc: "Default action to use for creating new items in creatable comboboxes."
+      ],
       module: [
         type: :atom,
         doc: "Override the auto-generated helper module name (default: `Resource.Form`)."
