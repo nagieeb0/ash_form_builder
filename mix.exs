@@ -74,11 +74,15 @@ defmodule AshFormBuilder.MixProject do
       extras: [
         "README.md",
         "CHANGELOG.md",
-        "guides/theme_customization_guide.md"
+        "FILE_UPLOAD_GUIDE.md",
+        "STORAGE_CONFIGURATION.md",
+        "guides/theme_customization_guide.md",
+        "guides/todo_app_integration.livemd",
+        "guides/relationships_guide.livemd"
       ],
       groups_for_extras: [
-        "": ["README.md", "CHANGELOG.md"],
-        Guides: ["guides/theme_customization_guide.md"]
+        "": ["README.md", "CHANGELOG.md", "FILE_UPLOAD_GUIDE.md", "STORAGE_CONFIGURATION.md"],
+        Guides: ["guides/theme_customization_guide.md", "guides/todo_app_integration.livemd", "guides/relationships_guide.livemd"]
       ],
       groups_for_modules: [
         "Core API": [
@@ -106,7 +110,7 @@ defmodule AshFormBuilder.MixProject do
       ],
       source_url: @source_url,
       formatters: ["html", "epub"],
-      skip_undefined_reference_warnings_on: ["CHANGELOG.md"]
+      skip_undefined_reference_warnings_on: ["CHANGELOG.md", "README.md"]
     ]
   end
 
