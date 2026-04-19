@@ -60,17 +60,21 @@ defmodule AshFormBuilder.FormComponent do
     wrapper_class = Info.form_wrapper_class(resource)
     form_id = assigns[:form_id] || Info.form_html_id(resource) || default_form_id(resource)
 
-    {:ok,
-     socket
-     |> assign(assigns)
-     |> assign(
-       entities: entities,
-       submit_label: submit_label,
-       wrapper_class: wrapper_class,
-       form_id: form_id
-     )
-     |> assign_new(:on_submit, fn -> nil end)
-     |> allow_file_uploads(entities)}
+    socket =
+      socket
+      |> assign(assigns)
+      |> assign(
+        entities: entities,
+        submit_label: submit_label,
+        wrapper_class: wrapper_class,
+        form_id: form_id
+      )
+      |> assign_new(:on_submit, fn -> nil end)
+
+    # Allow file uploads after assigning form to socket
+    socket = allow_file_uploads(socket, entities)
+
+    {:ok, socket}
   end
 
   @impl Phoenix.LiveComponent
@@ -114,6 +118,22 @@ defmodule AshFormBuilder.FormComponent do
   end
 
   def handle_event("validate", _params, socket), do: {:noreply, socket}
+
+  @impl Phoenix.LiveComponent
+  def handle_event("toggle_file_delete", %{"field" => field}, socket) do
+    # Get current delete state
+    form = socket.assigns.form.source
+    current_delete_value = Phoenix.HTML.Form.input_value(form, "#{field}_delete")
+    
+    # Toggle the delete flag
+    new_delete_value = if current_delete_value == "true", do: "false", else: "true"
+    
+    # Update form with new delete flag value
+    params = %{"#{field}_delete" => new_delete_value}
+    form = AshPhoenix.Form.validate(form, params)
+    
+    {:noreply, assign(socket, form: to_form(form))}
+  end
 
   @impl Phoenix.LiveComponent
   def handle_event("add_form", %{"path" => path}, socket) do
@@ -177,7 +197,7 @@ defmodule AshFormBuilder.FormComponent do
     file_fields = extract_file_upload_fields(entities)
 
     # Consume all file uploads before submitting to Ash
-    {upload_params, socket} = consume_file_uploads(socket, file_fields)
+    {upload_params, socket} = consume_file_uploads(socket, file_fields, params)
 
     merged_params = Map.merge(params, upload_params)
 
@@ -223,35 +243,152 @@ defmodule AshFormBuilder.FormComponent do
     [accept: accept, max_entries: max_entries, max_file_size: max_file_size]
   end
 
-  defp consume_file_uploads(socket, file_fields) do
+  defp consume_file_uploads(socket, file_fields, params) do
     Enum.reduce(file_fields, {%{}, socket}, fn field, {acc_params, socket} ->
       upload_config = Keyword.get(field.opts, :upload, [])
       cloud_module = resolve_cloud_module(upload_config)
 
-      paths =
-        Phoenix.LiveView.consume_uploaded_entries(socket, field.name, fn meta, entry ->
-          store_upload_entry(meta, entry, cloud_module)
-        end)
+      # Auto-detect target attribute name from field name
+      target_attribute = detect_target_attribute(field.name, upload_config)
 
-      case paths do
-        [] ->
-          {acc_params, socket}
+      # Check if user wants to delete existing file
+      delete_flag = Map.get(params, "#{field.name}_delete") == "true"
 
-        [single] ->
-          {Map.put(acc_params, to_string(field.name), single), socket}
+      # Get existing file path before deletion
+      existing_path = get_existing_file_path(socket.assigns.form, field.name)
 
-        multiple ->
-          {Map.put(acc_params, to_string(field.name), multiple), socket}
-      end
+      # Consume uploaded entries and store files (if not deleting)
+      result =
+        if not delete_flag do
+          Phoenix.LiveView.consume_uploaded_entries(socket, field.name, fn meta, entry ->
+            store_upload_entry(meta, entry, cloud_module, upload_config)
+          end)
+        else
+          []
+        end
+
+      # Filter out postponed entries (errors)
+      successful_paths = Enum.filter(result, &(elem(&1, 0) == :ok))
+
+      # Log errors
+      Enum.each(result, fn
+        {:postpone, reason} ->
+          require Logger
+          Logger.error("File upload postponed: #{inspect(reason)}")
+        _ -> :ok
+      end)
+
+      # Build params from successful uploads or deletion
+      upload_params =
+        cond do
+          # User requested deletion
+          delete_flag and not is_nil(existing_path) ->
+            # Cascade delete from storage
+            cascade_delete_file(existing_path, cloud_module, upload_config)
+            %{to_string(target_attribute) => nil}
+
+          # New file uploaded (single)
+          match?([{:ok, _}], successful_paths) and length(successful_paths) == 1 ->
+            [{:ok, path}] = successful_paths
+            %{to_string(target_attribute) => path}
+
+          # Multiple files uploaded
+          length(successful_paths) > 1 ->
+            paths = Enum.map(successful_paths, &elem(&1, 1))
+            %{to_string(target_attribute) => paths}
+
+          # No new upload, keep existing (don't override)
+          true ->
+            %{}
+        end
+
+      {Map.merge(acc_params, upload_params), socket}
     end)
   end
 
-  defp store_upload_entry(%{path: _path} = meta, entry, cloud_module)
+  defp cascade_delete_file(path, cloud_module, upload_config) when is_binary(path) do
+    # Delete single file
+    delete_file_from_storage(path, cloud_module, upload_config)
+  end
+
+  defp cascade_delete_file(paths, cloud_module, upload_config) when is_list(paths) do
+    # Delete multiple files
+    Enum.each(paths, &delete_file_from_storage(&1, cloud_module, upload_config))
+  end
+
+  defp cascade_delete_file(nil, _cloud_module, _upload_config), do: :ok
+
+  defp delete_file_from_storage(path, cloud_module, upload_config) when is_binary(path) do
+    if not is_nil(cloud_module) do
+      # Create object from path for deletion
+      object = %Buckets.Object{
+        uuid: generate_uuid_from_path(path),
+        filename: Path.basename(path),
+        location: %Buckets.Location{
+          path: path,
+          config: upload_config
+        },
+        data: nil,
+        metadata: %{},
+        stored?: true
+      }
+
+      case cloud_module.delete(object) do
+        {:ok, _} ->
+          require Logger
+          Logger.info("File deleted from storage: #{path}")
+          :ok
+
+        {:error, reason} ->
+          require Logger
+          Logger.error("Failed to delete file from storage: #{path} - #{inspect(reason)}")
+          :error
+      end
+    else
+      # No cloud module, just log
+      require Logger
+      Logger.info("File marked for deletion (no cloud module): #{path}")
+      :ok
+    end
+  end
+
+  defp generate_uuid_from_path(path) do
+    # Generate a UUID-like identifier from the path
+    :crypto.hash(:md5, path) |> Base.encode16(case: :lower)
+  end
+
+  defp get_existing_file_path(form, field_name) do
+    case Phoenix.HTML.Form.input_value(form, field_name) do
+      nil -> nil
+      "" -> nil
+      value -> value
+    end
+  end
+
+  defp detect_target_attribute(field_name, upload_config) do
+    # Check for explicit target_attribute in config
+    case Keyword.get(upload_config, :target_attribute) do
+      nil ->
+        # Auto-detect: append _path to field name
+        # e.g., :proposal → :proposal_path, :avatar → :avatar_path
+        String.to_existing_atom("#{field_name}_path")
+
+      target ->
+        target
+    end
+  end
+
+  defp store_upload_entry(%{path: _path} = meta, entry, cloud_module, upload_config)
        when not is_nil(cloud_module) do
     object = Buckets.Object.from_upload({entry, meta})
 
-    case cloud_module.insert(object) do
+    # Get bucket_name from config if provided
+    bucket_name = Keyword.get(upload_config, :bucket_name)
+    insert_opts = if bucket_name, do: [bucket_name: bucket_name], else: []
+
+    case cloud_module.insert(object, insert_opts) do
       {:ok, stored} ->
+        # Return path
         {:ok, stored.location.path}
 
       {:error, reason} ->
@@ -261,7 +398,8 @@ defmodule AshFormBuilder.FormComponent do
     end
   end
 
-  defp store_upload_entry(%{path: temp_path}, _entry, nil) do
+  defp store_upload_entry(%{path: temp_path}, _entry, _cloud_module, _upload_config) do
+    # No cloud module configured, return temp path
     {:ok, temp_path}
   end
 
@@ -296,14 +434,20 @@ defmodule AshFormBuilder.FormComponent do
   end
 
   defp parse_path_segment(segment) do
-    case Regex.run(~r/^(\w+)(?:\[(\d+)\])?$/, segment) do
-      [_, field, nil] ->
+    # Handle paths like "subtasks[0]" or "field[]" or just "field"
+    cond do
+      # Empty brackets like field[]
+      Regex.match?(~r/\[\]$/, segment) ->
+        field = Regex.replace(~r/\[\]$/, segment, "")
         String.to_existing_atom(field)
 
-      [_, field, index] ->
+      # Indexed brackets like field[0]
+      match = Regex.run(~r/^(\w+)\[(\d+)\]$/, segment) ->
+        [_, field, index] = match
         {String.to_existing_atom(field), String.to_integer(index)}
 
-      _ ->
+      # Plain field name
+      true ->
         String.to_existing_atom(segment)
     end
   end

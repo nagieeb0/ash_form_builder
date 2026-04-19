@@ -4,7 +4,9 @@
       "Bash(mix *)",
       "Bash(git add *)",
       "Bash(mkdir *)",
-      "Bash(ls *)"
+      "Bash(ls *)",
+      "Bash(grep *)",
+      "Bash(sed *)"
     ]
   },
   "$version": 3

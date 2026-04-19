@@ -339,31 +339,31 @@ defmodule AshFormBuilderTest do
 
   describe "AshFormBuilder.Theme behaviour" do
     test "Default theme implements the Theme behaviour" do
-      assert function_exported?(AshFormBuilder.Themes.Default, :render_field, 1)
+      assert function_exported?(AshFormBuilder.Themes.Default, :render_field, 2)
     end
 
     test "Mishka theme implements the Theme behaviour" do
-      assert function_exported?(AshFormBuilder.Themes.Mishka, :render_field, 1)
+      assert function_exported?(AshFormBuilder.Theme.MishkaTheme, :render_field, 2)
     end
 
-    test "Default theme render_field/1 returns a Rendered struct for text field" do
+    test "Default theme render_field/2 returns a Rendered struct for text field" do
       form = AshFormBuilder.Test.Resources.Post.Form.for_create(authorize?: false)
       field = %AshFormBuilder.Field{name: :title, label: "Title", type: :text_input}
-      result = AshFormBuilder.Themes.Default.render_field(%{form: form, field: field})
+      result = AshFormBuilder.Themes.Default.render_field(%{form: form, field: field}, [])
       assert %Phoenix.LiveView.Rendered{} = result
     end
 
-    test "Default theme render_field/1 returns a Rendered struct for checkbox" do
+    test "Default theme render_field/2 returns a Rendered struct for checkbox" do
       form = AshFormBuilder.Test.Resources.Post.Form.for_create(authorize?: false)
       field = %AshFormBuilder.Field{name: :published, label: "Published", type: :checkbox}
-      result = AshFormBuilder.Themes.Default.render_field(%{form: form, field: field})
+      result = AshFormBuilder.Themes.Default.render_field(%{form: form, field: field}, [])
       assert %Phoenix.LiveView.Rendered{} = result
     end
 
-    test "Default theme render_field/1 returns a Rendered struct for hidden field" do
+    test "Default theme render_field/2 returns a Rendered struct for hidden field" do
       form = AshFormBuilder.Test.Resources.Post.Form.for_create(authorize?: false)
       field = %AshFormBuilder.Field{name: :id, type: :hidden}
-      result = AshFormBuilder.Themes.Default.render_field(%{form: form, field: field})
+      result = AshFormBuilder.Themes.Default.render_field(%{form: form, field: field}, [])
       assert %Phoenix.LiveView.Rendered{} = result
     end
 

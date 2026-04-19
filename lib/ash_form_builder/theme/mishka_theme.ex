@@ -114,7 +114,21 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
   defp render_file_upload(assigns) do
     upload_config = assigns.uploads[assigns.field.name]
     field_errors = extract_field_errors(assigns.form, assigns.field.name)
-    assigns = Map.merge(assigns, %{upload_config: upload_config, field_errors: field_errors})
+    
+    # Get existing file path from form value (for update forms)
+    existing_path = get_existing_file_path(assigns.form, assigns.field.name)
+    
+    # Determine if field supports multiple files
+    upload_opts = Keyword.get(assigns.field.opts, :upload, [])
+    max_entries = Keyword.get(upload_opts, :max_entries, 1)
+    supports_multiple = max_entries > 1
+    
+    assigns = 
+      assigns
+      |> Map.put(:upload_config, upload_config)
+      |> Map.put(:field_errors, field_errors)
+      |> Map.put(:existing_path, existing_path)
+      |> Map.put(:supports_multiple, supports_multiple)
 
     ~H"""
     <div class={["mb-4", @field.wrapper_class]}>
@@ -123,7 +137,29 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
         <span :if={@field.required} class="text-red-500 ml-1" aria-hidden="true">*</span>
       </label>
 
+      <%!-- Show existing file(s) in update forms --%>
+      <div :if={@existing_path} class="mb-4">
+        <p class="text-sm font-medium text-gray-700 mb-2">Current File(s):</p>
+        
+        <%= if is_list(@existing_path) do %>
+          <%!-- Multiple existing files --%>
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <%= for path <- @existing_path do %>
+              <.existing_file_preview path={path} field_name={@field.name} form={@form} />
+            <% end %>
+          </div>
+        <% else %>
+          <%!-- Single existing file --%>
+          <.existing_file_preview path={@existing_path} field_name={@field.name} form={@form} />
+        <% end %>
+      </div>
+
+      <%!-- Upload new file(s) --%>
       <div :if={@upload_config} class="border-2 border-dashed border-gray-300 rounded-lg p-4">
+        <p class="text-sm text-gray-600 mb-2">
+          <%= if @existing_path do %>Upload new file to replace<% else %>Select file(s) to upload<% end %>
+        </p>
+        
         <.live_file_input
           upload={@upload_config}
           class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
@@ -168,6 +204,156 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
       <% end %>
     </div>
     """
+  end
+
+  # ---------------------------------------------------------------------------
+  # Existing File Preview Component
+  # ---------------------------------------------------------------------------
+
+  attr :path, :string, required: true
+  attr :field_name, :string, required: true
+  attr :form, :any, required: true
+
+  defp existing_file_preview(assigns) do
+    is_image = image_file?(assigns.path)
+    filename = Path.basename(assigns.path)
+    delete_flag = get_delete_flag(assigns.form, assigns.field_name)
+    
+    assigns = 
+      assigns
+      |> Map.put(:is_image, is_image)
+      |> Map.put(:filename, filename)
+      |> Map.put(:delete_flag, delete_flag)
+
+    ~H"""
+    <div 
+      id={"#{@field_name}_preview_container"}
+      class={"relative group border rounded-lg p-2 bg-gray-50 hover:bg-gray-100 transition-colors #{if @delete_flag, do: "opacity-50 line-through"}"}
+    >
+      <%!-- Hidden input to track delete state --%>
+      <input
+        type="hidden"
+        id={"#{@field_name}_delete"}
+        name={"#{@field_name}_delete"}
+        value={"#{if @delete_flag, do: "true", else: "false"}"}
+        phx-hook="FileDeleteToggle"
+        data-field={@field_name}
+      />
+
+      <div class="flex items-start gap-2">
+        <%!-- Image Preview --%>
+        <div :if={@is_image} class="relative">
+          <img
+            src={@path}
+            alt={@filename}
+            class="h-16 w-16 rounded object-cover border border-gray-200"
+            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"
+          />
+          <div class="h-16 w-16 rounded bg-gray-200 border border-gray-300 flex items-center justify-center" style="display: none">
+            <svg class="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+        </div>
+
+        <%!-- File Icon for non-images --%>
+        <div :if={not @is_image} class="h-16 w-16 rounded bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0">
+          <%= get_file_icon(@path) %>
+        </div>
+
+        <%!-- File Info --%>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-medium text-gray-700 truncate" title={@path}>
+            {@filename}
+          </p>
+          <p :if={not @delete_flag} class="text-xs text-gray-500 mt-1">Click delete to remove</p>
+        </div>
+
+        <%!-- Delete/Restore Button --%>
+        <button
+          type="button"
+          phx-click="toggle_file_delete"
+          phx-value-field={@field_name}
+          phx-target={@myself}
+          class="absolute top-1 right-1 p-1 rounded-full transition-colors"
+          class={"#{if @delete_flag, do: "bg-green-500 hover:bg-green-600 text-white", else: "bg-red-500 hover:bg-red-600 text-white opacity-0 group-hover:opacity-100"}"}
+          title={if @delete_flag, do: "Restore this file", else: "Delete this file"}
+        >
+          <%= if @delete_flag do %>
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+            </svg>
+          <% else %>
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          <% end %>
+        </button>
+      </div>
+
+      <%!-- Deleted State Indicator --%>
+      <div :if={@delete_flag} class="mt-2 text-xs text-red-600 font-medium flex items-center gap-1">
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+        </svg>
+        Marked for deletion (will be removed on save)
+      </div>
+    </div>
+    """
+  end
+
+  defp get_delete_flag(form, field_name) do
+    # Check if delete flag is set in form params
+    case Phoenix.HTML.Form.input_value(form, "#{field_name}_delete") do
+      "true" -> true
+      _ -> false
+    end
+  end
+
+  defp image_file?(path) when is_binary(path) do
+    ext = path |> Path.extname() |> String.downcase()
+    ext in [".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".bmp"]
+  end
+
+  defp image_file?(_), do: false
+
+  defp get_file_icon(path) when is_binary(path) do
+    ext = path |> Path.extname() |> String.downcase()
+    
+    cond do
+      # PDF
+      ext == ".pdf" ->
+        {:safe, "<svg class=\"h-8 w-8 text-red-400\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z\" /></svg>"}
+      
+      # Word documents
+      ext in [".doc", ".docx"] ->
+        {:safe, "<svg class=\"h-8 w-8 text-blue-600\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z\" /></svg>"}
+      
+      # Excel spreadsheets
+      ext in [".xls", ".xlsx", ".csv"] ->
+        {:safe, "<svg class=\"h-8 w-8 text-green-600\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z\" /></svg>"}
+      
+      # Images (shouldn't reach here, but fallback)
+      ext in [".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".bmp"] ->
+        {:safe, "<svg class=\"h-8 w-8 text-purple-400\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z\" /></svg>"}
+      
+      # ZIP/Archive
+      ext in [".zip", ".rar", ".7z", ".tar", ".gz"] ->
+        {:safe, "<svg class=\"h-8 w-8 text-yellow-600\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4\" /></svg>"}
+      
+      # Default document icon
+      true ->
+        {:safe, "<svg class=\"h-8 w-8 text-gray-400\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z\" /></svg>"}
+    end
+  end
+
+  defp get_existing_file_path(form, field_name) do
+    # Try to get existing value from form
+    case Phoenix.HTML.Form.input_value(form, field_name) do
+      nil -> nil
+      "" -> nil
+      value -> value
+    end
   end
 
   defp upload_error_message(:too_large), do: "File is too large"
@@ -228,18 +414,17 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
       end
 
     assigns =
-      assign(assigns,
-        placeholder: placeholder,
-        current_values: current_values,
-        options: preload_options,
-        errors: field_errors,
-        change_attrs: change_attrs,
-        multiple: true,
-        creatable?: creatable?,
-        create_action: create_action,
-        create_label: create_label,
-        destination_resource: field.destination_resource
-      )
+      assigns
+      |> Map.put(:placeholder, placeholder)
+      |> Map.put(:current_values, current_values)
+      |> Map.put(:options, preload_options)
+      |> Map.put(:errors, field_errors)
+      |> Map.put(:change_attrs, change_attrs)
+      |> Map.put(:multiple, true)
+      |> Map.put(:creatable?, creatable?)
+      |> Map.put(:create_action, create_action)
+      |> Map.put(:create_label, create_label)
+      |> Map.put(:destination_resource, field.destination_resource)
 
     ~H"""
     <div class={["mb-4", @field.wrapper_class]}>
@@ -327,8 +512,7 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
 
   defp render_textarea(assigns) do
     assigns =
-      assign(assigns,
-        field_errors: extract_field_errors(assigns.form, assigns.field.name)
+      Map.put(assigns, :field_errors, extract_field_errors(assigns.form, assigns.field.name)
       )
 
     ~H"""
@@ -350,7 +534,7 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
 
   defp render_select(assigns) do
     assigns =
-      assign(assigns,
+      Map.put(assigns,
         field_errors: extract_field_errors(assigns.form, assigns.field.name),
         normalized_options: normalize_options(assigns.field.options)
       )
@@ -373,7 +557,7 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
 
   defp render_checkbox(assigns) do
     assigns =
-      assign(assigns,
+      Map.put(assigns,
         field_errors: extract_field_errors(assigns.form, assigns.field.name)
       )
 
@@ -393,7 +577,7 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
 
   defp render_number(assigns) do
     assigns =
-      assign(assigns,
+      Map.put(assigns,
         field_errors: extract_field_errors(assigns.form, assigns.field.name)
       )
 
@@ -415,7 +599,7 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
 
   defp render_email(assigns) do
     assigns =
-      assign(assigns,
+      Map.put(assigns,
         field_errors: extract_field_errors(assigns.form, assigns.field.name)
       )
 
@@ -437,7 +621,7 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
 
   defp render_password(assigns) do
     assigns =
-      assign(assigns,
+      Map.put(assigns,
         field_errors: extract_field_errors(assigns.form, assigns.field.name)
       )
 
@@ -459,7 +643,7 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
 
   defp render_date(assigns) do
     assigns =
-      assign(assigns,
+      Map.put(assigns,
         field_errors: extract_field_errors(assigns.form, assigns.field.name)
       )
 
@@ -482,7 +666,7 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
 
   defp render_datetime(assigns) do
     assigns =
-      assign(assigns,
+      Map.put(assigns,
         field_errors: extract_field_errors(assigns.form, assigns.field.name)
       )
 
@@ -505,7 +689,7 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
 
   defp render_url(assigns) do
     assigns =
-      assign(assigns,
+      Map.put(assigns,
         field_errors: extract_field_errors(assigns.form, assigns.field.name)
       )
 
@@ -528,9 +712,8 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
   defp render_tel(assigns) do
     # MishkaChelekom may not have a specific tel field, use text_field with tel type
     assigns =
-      assign(assigns,
-        field_errors: extract_field_errors(assigns.form, assigns.field.name)
-      )
+      Map.put(assigns,
+        field_errors: extract_field_errors(assigns.form, assigns.field.name))
 
     ~H"""
     <.text_field
@@ -551,9 +734,7 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
 
   defp render_text_input(assigns) do
     assigns =
-      assign(assigns,
-        field_errors: extract_field_errors(assigns.form, assigns.field.name)
-      )
+      Map.put(assigns, :field_errors, extract_field_errors(assigns.form, assigns.field.name))
 
     ~H"""
     <.text_field

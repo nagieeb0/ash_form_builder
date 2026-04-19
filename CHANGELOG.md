@@ -14,6 +14,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Multi-step form wizards
 - Form draft auto-save
 
+## [0.2.1] - 2026-04-19
+
+### ✨ Added - File Upload Support
+
+#### Declarative File Uploads
+- New `:file_upload` field type for Phoenix LiveView file uploads
+- Bridges Phoenix LiveView's `allow_upload/3` and `consume_uploaded_entries/3` with Ash Framework
+- Automatic upload lifecycle management in FormComponent
+- Integration with `Buckets.Cloud` for file storage
+
+#### Upload Configuration
+- Configurable upload options via `opts upload:`:
+  - `cloud` - Buckets.Cloud module for storage
+  - `max_entries` - Maximum number of files (default: 1)
+  - `max_file_size` - Maximum file size in bytes (default: 8_000_000)
+  - `accept` - Accepted file extensions or MIME types
+  - `bucket_name` - Optional bucket name for storage
+- Support for single and multiple file uploads
+- Automatic error handling for too_large, too_many_files, not_accepted
+
+#### Theme Integration
+- MishkaTheme: Full file upload UI with Tailwind styling
+  - Live file input with drag-and-drop support
+  - Image previews with `live_img_preview`
+  - Progress bars for upload progress
+  - Error message display for validation errors
+- Default Theme: Clean HTML5 file input with progress indicator
+- Custom themes: Implement `render_file_upload/1` callback
+
+#### Type Inference
+- Auto-inference of `:file` and `Ash.Type.File` types to `:file_upload` UI type
+- Seamless integration with existing field inference engine
+- DSL validation for upload configuration options
+
+### 🔧 Improved
+
+#### FormComponent
+- Enhanced `allow_file_uploads/2` with duplicate prevention
+- Improved `consume_file_uploads/2` with error filtering and logging
+- Better parameter merging for uploaded file paths
+- Safe atom conversion using `String.to_existing_atom/1` throughout
+
+#### parse_path_segment
+- Fixed handling of empty bracket notation (`field[]`)
+- Better error messages for invalid path segments
+
+### 📚 Documentation
+
+- Added comprehensive file upload guide to README.md
+- Updated DSL documentation with upload configuration options
+- Added usage examples for single and multiple file uploads
+- Updated theme documentation with file upload rendering
+
+### 🧪 Tests
+
+- Added upload_test.exs with comprehensive file upload tests
+- Tests for DSL inference, LiveView rendering, and upload lifecycle
+- Mock cloud storage tests with Buckets.Object
+- Tests for file size validation and error handling
+
 ## [0.2.0] - 2024-12-19
 
 ### ✨ Added - Production-Ready Features

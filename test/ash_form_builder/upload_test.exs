@@ -36,7 +36,6 @@ defmodule AshFormBuilder.UploadTest do
 
     test "infer_fields maps :file atom type to :file_upload" do
       # The @type_map now includes :file => :file_upload
-      fields = AshFormBuilder.Infer.infer_fields(UploadResources.UserProfile, :create)
       # avatar is an explicit :string argument inferred as :text_input by default,
       # but it's declared in the DSL as :file_upload — effective_entities merges it
       entities = AshFormBuilder.Info.effective_entities(UploadResources.UserProfile)

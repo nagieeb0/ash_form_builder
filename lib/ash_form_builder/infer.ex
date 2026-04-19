@@ -147,6 +147,7 @@ defmodule AshFormBuilder.Infer do
     :color => :text_input,
 
     # File (maps to LiveView file upload)
+    Ash.Type.File => :file_upload,
     :file => :file_upload
   }
 
@@ -490,20 +491,17 @@ defmodule AshFormBuilder.Infer do
 
   defp infer_type(type, constraints) do
     cond do
-      # Direct type mapping
-      Map.has_key?(@type_map, type) ->
-        Map.get(@type_map, type)
-
-      # Constraint-based inference
+      # Constraint-based inference takes precedence
       constraints[:one_of] ->
-        :select
-
-      type == :atom and constraints[:one_of] ->
         :select
 
       # Enum module detection
       is_atom(type) and function_exported?(type, :values, 0) ->
         :select
+
+      # Direct type mapping
+      Map.has_key?(@type_map, type) ->
+        Map.get(@type_map, type)
 
       # Fallback
       true ->

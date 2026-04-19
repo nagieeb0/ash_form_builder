@@ -6,8 +6,6 @@ defmodule AshFormBuilder.FormComponentLiveTest do
 
   @endpoint AshFormBuilder.Test.Endpoint
 
-  alias AshFormBuilder.Test.Domain.Clinic
-
   setup do
     previous_theme = Application.get_env(:ash_form_builder, :theme)
     Application.put_env(:ash_form_builder, :theme, AshFormBuilder.Theme.MishkaTheme)
@@ -61,7 +59,7 @@ defmodule AshFormBuilder.FormComponentLiveTest do
 
       html =
         view
-        |> form("#clinic-form", clinic: %{"name" => ""})
+        |> form("#clinic-form", %{"name" => ""})
         |> render_submit()
 
       assert html =~ "can't be blank" or html =~ "is invalid" or html =~ "required"
@@ -72,7 +70,7 @@ defmodule AshFormBuilder.FormComponentLiveTest do
 
       _html =
         view
-        |> form("#clinic-form", clinic: %{"name" => "Downtown Clinic", "phone" => "555-0100"})
+        |> form("#clinic-form", %{"name" => "Downtown Clinic", "phone" => "555-0100"})
         |> render_submit()
 
       assert render(view) =~ "last-submission"

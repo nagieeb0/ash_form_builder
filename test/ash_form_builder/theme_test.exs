@@ -6,7 +6,6 @@ defmodule AshFormBuilder.ThemeTest do
   use ExUnit.Case, async: true
 
   alias AshFormBuilder.Field
-  alias AshFormBuilder.Theme
 
   describe "Default Theme" do
     test "implements render_field/2" do

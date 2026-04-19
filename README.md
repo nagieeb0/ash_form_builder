@@ -251,6 +251,138 @@ end
 
 ---
 
+## 📁 File Uploads
+
+AshFormBuilder provides declarative file upload support that bridges Phoenix LiveView's native upload lifecycle with Ash Framework's file handling.
+
+### Basic File Upload
+
+```elixir
+defmodule MyApp.Users.User do
+  use Ash.Resource,
+    domain: MyApp.Users,
+    extensions: [AshFormBuilder]
+
+  attributes do
+    uuid_primary_key :id
+    attribute :name, :string, allow_nil?: false
+    attribute :avatar_path, :string
+  end
+
+  actions do
+    create :create do
+      accept [:name]
+      argument :avatar, :string, allow_nil?: true
+      
+      # Store the uploaded file path in the avatar_path attribute
+      change fn changeset, _ ->
+        case Ash.Changeset.get_argument(changeset, :avatar) do
+          nil -> changeset
+          path -> Ash.Changeset.change_attribute(changeset, :avatar_path, path)
+        end
+      end
+    end
+  end
+
+  form do
+    action :create
+    submit_label "Create User"
+
+    field :name do
+      label "Full Name"
+      required true
+    end
+
+    field :avatar do
+      type :file_upload
+      label "Profile Photo"
+      hint "JPEG or PNG, max 5 MB"
+      
+      opts upload: [
+        cloud: MyApp.Buckets.Cloud,      # Buckets.Cloud module for storage
+        max_entries: 1,                   # Allow only 1 file
+        max_file_size: 5_000_000,         # 5 MB max
+        accept: ~w(.jpg .jpeg .png)       # Accepted file types
+      ]
+    end
+  end
+end
+```
+
+### Upload Configuration Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `cloud` | module | required | Module implementing `Buckets.Cloud` behaviour |
+| `max_entries` | integer | 1 | Maximum number of files allowed |
+| `max_file_size` | integer | 8_000_000 | Maximum file size in bytes |
+| `accept` | list | `:any` | Accepted file extensions or MIME types |
+| `bucket_name` | atom | nil | Optional bucket name for storage |
+
+### How It Works
+
+1. **Mount**: FormComponent automatically calls `allow_upload/3` for each `:file_upload` field
+2. **Upload**: User selects file → Phoenix LiveView handles the upload progress
+3. **Submit**: On form submission:
+   - `consume_uploaded_entries/3` is called for each upload field
+   - Files are stored via the configured `Buckets.Cloud` module
+   - Final file paths are injected into Ash action parameters
+   - Ash action receives the stored file paths
+
+### Multiple File Uploads
+
+```elixir
+field :attachments do
+  type :file_upload
+  label "Attachments"
+  hint "Upload multiple documents (max 5)"
+  
+  opts upload: [
+    cloud: MyApp.Buckets.Cloud,
+    max_entries: 5,
+    max_file_size: 10_000_000,
+    accept: ~w(.pdf .doc .docx)
+  ]
+end
+```
+
+### Using in LiveView
+
+```elixir
+defmodule MyAppWeb.UserLive.Create do
+  use MyAppWeb, :live_view
+
+  def mount(_params, _session, socket) do
+    form = MyApp.Users.User.Form.for_create(actor: socket.assigns.current_user)
+    {:ok, assign(socket, form: form)}
+  end
+
+  def render(assigns) do
+    ~H"""
+    <.live_component
+      module={AshFormBuilder.FormComponent}
+      id="user-form"
+      resource={MyApp.Users.User}
+      form={@form}
+    />
+    """
+  end
+
+  def handle_info({:form_submitted, MyApp.Users.User, user}, socket) do
+    {:noreply, push_navigate(socket, to: ~p"/users/#{user.id}")}
+  end
+end
+```
+
+### Theme Support
+
+File uploads are styled according to your configured theme:
+- **Default Theme**: Clean HTML5 file input with progress bar
+- **MishkaTheme**: Styled with Tailwind CSS, includes image previews
+- **Custom Themes**: Implement `render_file_upload/1` in your theme module
+
+---
+
 ## 🔄 Create vs Update Forms
 
 AshFormBuilder supports both create and update forms with **separate `form` blocks** for each action.

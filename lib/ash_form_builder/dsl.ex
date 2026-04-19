@@ -94,7 +94,9 @@ defmodule AshFormBuilder.Dsl do
         type: :keyword_list,
         default: [],
         doc: """
-        Custom options for UI components. For `:multiselect_combobox`, supports:
+        Custom options for UI components.
+
+        For `:multiselect_combobox`, supports:
         * `search_event` - Event name for searching (e.g., "search_doctors")
         * `search_param` - Query param name for search (default: "query")
         * `debounce` - Search debounce in ms (default: 300)
@@ -104,6 +106,14 @@ defmodule AshFormBuilder.Dsl do
         * `creatable` - Allow creating new items via combobox (default: false)
         * `create_action` - Action to use for creating new items (default: :create)
         * `create_label` - Label for the create button (default: "Create \"{value}\"")
+
+        For `:file_upload`, supports:
+        * `upload` - Keyword list of upload configuration:
+          * `cloud` - Module implementing `Buckets.Cloud` behaviour for storage
+          * `max_entries` - Maximum number of files allowed (default: 1)
+          * `max_file_size` - Maximum file size in bytes (default: 8_000_000)
+          * `accept` - List of accepted file extensions or MIME types (default: :any)
+          * `bucket_name` - Name of the bucket to store files in (optional)
         """
       ]
     ]

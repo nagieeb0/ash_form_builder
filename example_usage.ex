@@ -1045,6 +1045,309 @@ end
 # end
 #
 # =============================================================================
+# 9. FILE UPLOADS
+# =============================================================================
+#
+# AshFormBuilder provides declarative file upload support that bridges
+# Phoenix LiveView's native upload lifecycle with Ash Framework.
+#
+# =============================================================================
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9.1 Resource with File Upload
+# ─────────────────────────────────────────────────────────────────────────────
+
+defmodule MyApp.Users.User do
+  @moduledoc """
+  User resource with file upload support.
+  """
+
+  use Ash.Resource,
+    domain: MyApp.Users,
+    extensions: [AshFormBuilder]
+
+  attributes do
+    uuid_primary_key :id
+    attribute :name, :string, allow_nil?: false
+    attribute :email, :string, allow_nil?: false
+    attribute :avatar_path, :string
+  end
+
+  actions do
+    defaults [:read, :destroy]
+
+    create :create do
+      accept [:name, :email]
+      argument :avatar, :string, allow_nil?: true
+
+      # Store uploaded file path in avatar_path attribute
+      change fn changeset, _ ->
+        case Ash.Changeset.get_argument(changeset, :avatar) do
+          nil -> changeset
+          path -> Ash.Changeset.change_attribute(changeset, :avatar_path, path)
+        end
+      end
+    end
+
+    update :update do
+      accept [:name, :email]
+      argument :avatar, :string, allow_nil?: true
+
+      change fn changeset, _ ->
+        case Ash.Changeset.get_argument(changeset, :avatar) do
+          nil -> changeset
+          path -> Ash.Changeset.change_attribute(changeset, :avatar_path, path)
+        end
+      end
+    end
+  end
+
+  form do
+    action :create
+    submit_label "Create User"
+
+    field :name do
+      label "Full Name"
+      required true
+    end
+
+    field :email do
+      label "Email Address"
+      type :email
+      required true
+    end
+
+    field :avatar do
+      type :file_upload
+      label "Profile Photo"
+      hint "JPEG or PNG, max 5 MB"
+
+      opts upload: [
+        cloud: MyApp.Buckets.Cloud,
+        max_entries: 1,
+        max_file_size: 5_000_000,
+        accept: ~w(.jpg .jpeg .png)
+      ]
+    end
+  end
+
+  # Separate configuration for update form
+  form do
+    action :update
+    submit_label "Save Changes"
+
+    field :name do
+      label "Full Name"
+      required true
+    end
+
+    field :email do
+      label "Email Address"
+      type :email
+      required true
+    end
+
+    field :avatar do
+      type :file_upload
+      label "Profile Photo"
+      hint "Upload new photo to replace existing one"
+
+      opts upload: [
+        cloud: MyApp.Buckets.Cloud,
+        max_entries: 1,
+        max_file_size: 5_000_000,
+        accept: ~w(.jpg .jpeg .png)
+      ]
+    end
+  end
+end
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9.2 Multiple File Uploads
+# ─────────────────────────────────────────────────────────────────────────────
+
+defmodule MyApp.Documents.Document do
+  @moduledoc """
+  Document resource with multiple file uploads.
+  """
+
+  use Ash.Resource,
+    domain: MyApp.Documents,
+    extensions: [AshFormBuilder]
+
+  attributes do
+    uuid_primary_key :id
+    attribute :title, :string, allow_nil?: false
+    attribute :file_paths, {:array, :string}, default: []
+  end
+
+  actions do
+    create :create do
+      accept [:title]
+      argument :files, {:array, :string}, allow_nil?: true
+
+      change fn changeset, _ ->
+        case Ash.Changeset.get_argument(changeset, :files) do
+          nil -> changeset
+          paths -> Ash.Changeset.change_attribute(changeset, :file_paths, paths)
+        end
+      end
+    end
+  end
+
+  form do
+    action :create
+    submit_label "Upload Documents"
+
+    field :title do
+      label "Document Title"
+      required true
+    end
+
+    field :files do
+      type :file_upload
+      label "Attachments"
+      hint "Upload multiple PDF or Word documents (max 5 files, 10 MB each)"
+
+      opts upload: [
+        cloud: MyApp.Buckets.Cloud,
+        max_entries: 5,
+        max_file_size: 10_000_000,
+        accept: ~w(.pdf .doc .docx)
+      ]
+    end
+  end
+end
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9.3 LiveView Integration
+# ─────────────────────────────────────────────────────────────────────────────
+
+defmodule MyAppWeb.UserLive.Create do
+  @moduledoc """
+  LiveView for creating users with file uploads.
+  """
+
+  use MyAppWeb, :live_view
+
+  def mount(_params, _session, socket) do
+    form = MyApp.Users.User.Form.for_create(actor: socket.assigns.current_user)
+    {:ok, assign(socket, form: form)}
+  end
+
+  def render(assigns) do
+    ~H"""
+    <div class="max-w-2xl mx-auto px-4 py-8">
+      <h1 class="text-3xl font-bold mb-6">Create User</h1>
+
+      <.live_component
+        module={AshFormBuilder.FormComponent}
+        id="user-form"
+        resource={MyApp.Users.User}
+        form={@form}
+      />
+    </div>
+    """
+  end
+
+  def handle_info({:form_submitted, MyApp.Users.User, user}, socket) do
+    {:noreply,
+     socket
+     |> put_flash(:info, "User created successfully!")
+     |> push_navigate(to: ~p"/users/#{user.id}")}
+  end
+end
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9.4 How File Uploads Work
+# ─────────────────────────────────────────────────────────────────────────────
+
+# 1. MOUNT PHASE:
+#    - FormComponent.update/2 is called
+#    - allow_file_uploads/2 loops through all :file_upload fields
+#    - Phoenix.LiveView.allow_upload/3 is called for each field
+#    - Upload configuration is applied (accept, max_entries, max_file_size)
+#
+# 2. UPLOAD PHASE:
+#    - User selects file(s) via live_file_input
+#    - Phoenix LiveView handles chunked upload
+#    - Progress is displayed via live_img_preview and progress bars
+#    - Validation errors shown for too_large, too_many_files, not_accepted
+#
+# 3. SUBMIT PHASE:
+#    - User submits form
+#    - FormComponent.handle_event("submit", ...) is called
+#    - consume_file_uploads/2 is called BEFORE AshPhoenix.Form.submit/2
+#    - For each upload field:
+#      * Phoenix.LiveView.consume_uploaded_entries/3 is called
+#      * Each entry is stored via Buckets.Cloud.insert/2
+#      * Final file path is extracted from stored location
+#    - File paths are merged into form parameters
+#    - Ash action receives parameters with file paths
+#    - Ash change function stores paths in resource attributes
+#
+# 4. RESULT:
+#    - Form submission succeeds or fails based on Ash validations
+#    - On success, file paths are persisted in database
+#    - On error, form re-renders with validation errors, uploads preserved
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9.5 Testing File Uploads
+# ─────────────────────────────────────────────────────────────────────────────
+
+# defmodule MyAppWeb.UserLive.CreateTest do
+#   use MyAppWeb.ConnCase, async: true
+#   import Phoenix.LiveViewTest
+#
+#   test "uploading avatar creates user with file path", %{conn: conn} do
+#     {:ok, view, _html} = live_isolated(conn, MyAppWeb.UserLive.Create)
+#
+#     # Select file for upload
+#     upload =
+#       file_input(view, "#user-form", :avatar, [
+#         %{
+#           name: "avatar.jpg",
+#           content: :binary.copy(<<0xFF, 0xD8, 0xFF>>, 100),
+#           type: "image/jpeg"
+#         }
+#       ])
+#
+#     # Simulate upload progress
+#     render_upload(upload, 100)
+#
+#     # Submit form
+#     view
+#     |> form("#user-form", user: %{"name" => "John", "email" => "john@example.com"})
+#     |> render_submit()
+#
+#     # Assert user was created
+#     assert render(view) =~ "User created successfully!"
+#
+#     # Assert file was stored
+#     user = MyApp.Users.get_user_by_email!("john@example.com")
+#     assert user.avatar_path =~ "uploads/"
+#     assert user.avatar_path =~ "avatar.jpg"
+#   end
+#
+#   test "file too large shows error", %{conn: conn} do
+#     {:ok, view, _html} = live_isolated(conn, MyAppWeb.UserLive.Create)
+#
+#     # Try to upload file larger than max_file_size (5 MB)
+#     big_file = :binary.copy(<<0>>, 6_000_000)
+#
+#     upload =
+#       file_input(view, "#user-form", :avatar, [
+#         %{name: "huge.jpg", content: big_file, type: "image/jpeg"}
+#       ])
+#
+#     html = render_upload(upload, 100)
+#
+#     # Assert error message is shown
+#     assert html =~ "too large" or html =~ "File is too large"
+#   end
+# end
+
+# =============================================================================
 # END OF GUIDE
 # =============================================================================
 #
