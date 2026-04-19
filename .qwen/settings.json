@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(mix *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(mkdir *)"
     ]
   },
   "$version": 3

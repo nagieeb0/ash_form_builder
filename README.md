@@ -1,5 +1,13 @@
 # Ash Form Builder 🚀
 
+> ⚠️ **EXPERIMENTAL - USE AT YOUR OWN RISK** ⚠️
+> 
+> This package is under active development. API may change without notice.
+> Breaking changes are likely in minor versions. Not recommended for critical
+> production systems without thorough testing.
+> 
+> **Status**: Alpha/Experimental | **Version**: 0.1.0
+
 A declarative form generation engine for [Ash Framework](https://ash-hq.org/) and [Phoenix LiveView](https://hexdocs.pm/phoenix_live_view/Phoenix.LiveView.html).
 
 Define your form structures directly inside your `Ash.Resource` domain layer, and let the engine automatically generate the Phoenix form modules, nested configurations, and LiveView components.
@@ -7,12 +15,15 @@ Define your form structures directly inside your `Ash.Resource` domain layer, an
 ## ✨ Features
 
 * **🤖 Auto-Inference Engine** - Automatically infers form fields from your resource's `accept` list, including `many_to_many` relationships
-* **� Domain Code Interface Integration** - Works seamlessly with Ash's `form_to_<action>` pattern for clean, policy-compliant LiveViews
+* **🔗 Domain Code Interface Integration** - Works seamlessly with Ash's `form_to_<action>` pattern for clean, policy-compliant LiveViews
 * **🔍 Searchable Many-to-Many** - Built-in `:multiselect_combobox` type with searchable selection for many-to-many relationships
+* **✨ NEW: Creatable Combobox** - Create related records on-the-fly directly from the form UI
+* **🔗 Has Many Nested Forms** - Dynamic add/remove for child records (subtasks, order items, etc.)
 * **🎨 Customizable Themes** - Default HTML theme + full [MishkaChelekom](https://github.com/mishka-group/mishka_chelekom) component integration
 * **🛠️ Declarative DSL** - Define form fields, types, and labels directly in your resource
 * **🔄 Multiple Actions** - Support for both `:create` and `:update` forms with separate configurations
 * **⚡ Self-Contained LiveComponent** - A ready-to-use `<.live_component>` that handles validation, submission, and nested form state automatically
+* **🔐 Policy Enforcement** - All Ash policies and validations are automatically respected
 
 ---
 
@@ -25,9 +36,17 @@ def deps do
   [
     {:ash, "~> 3.0"},
     {:ash_phoenix, "~> 2.0"},
-    {:ash_form_builder, github: "nagieeb0/ash_form_builder"}
+    # ⚠️ EXPERIMENTAL - Use at your own risk
+    {:ash_form_builder, "~> 0.1.0"}
+    # Or from GitHub for latest:
+    # {:ash_form_builder, github: "nagieeb0/ash_form_builder"}
   ]
 end
+```
+
+Then run:
+```bash
+mix deps.get
 ```
 
 Configure your theme in `config/config.exs`:
@@ -52,7 +71,7 @@ The simplest approach: just declare the action, and the form fields are auto-inf
 defmodule MyApp.Billing.Clinic do
   use Ash.Resource,
     domain: MyApp.Billing,
-    extensions: [AshFormBuilder]
+    extensions: [AshFormBuilder]  # ← Add this extension
 
   attributes do
     uuid_primary_key :id
@@ -98,7 +117,7 @@ defmodule MyApp.Billing do
 end
 ```
 
-### 3. Create the LiveView (Zero Boilerplate!)
+### 3. Use in LiveView
 
 ```elixir
 defmodule MyAppWeb.ClinicLive.Form do
@@ -106,310 +125,207 @@ defmodule MyAppWeb.ClinicLive.Form do
 
   alias MyApp.Billing
 
-  @impl true
   def mount(_params, _session, socket) do
-    # No manual AshPhoenix.Form calls needed!
+    # Zero manual AshPhoenix.Form calls!
     form = Billing.Clinic.Form.for_create(actor: socket.assigns.current_user)
     {:ok, assign(socket, form: form)}
   end
 
-  @impl true
   def render(assigns) do
     ~H"""
-    <div class="max-w-2xl mx-auto">
-      <h1 class="text-2xl font-bold mb-4">Create Clinic</h1>
-
-      <.live_component
-        module={AshFormBuilder.FormComponent}
-        id="clinic-form"
-        resource={MyApp.Billing.Clinic}
-        form={@form}
-      />
-    </div>
+    <.live_component
+      module={AshFormBuilder.FormComponent}
+      id="clinic-form"
+      resource={MyApp.Billing.Clinic}
+      form={@form}
+    />
     """
   end
 
-  @impl true
   def handle_info({:form_submitted, MyApp.Billing.Clinic, clinic}, socket) do
-    {:noreply,
-     socket
-     |> put_flash(:info, "Clinic created!")
-     |> push_navigate(to: ~p"/clinics/#{clinic}")}
+    {:noreply, push_navigate(socket, to: ~p"/clinics/#{clinic.id}")}
   end
 end
 ```
 
 ---
 
-## 🔍 Many-to-Many with Searchable Combobox
+## 🎯 Key Features
 
-For `many_to_many` relationships, the auto-inference engine creates a `:multiselect_combobox` field with searchable selection.
+### Auto-Inference Engine
 
-### Customizing the Search Behavior
+Fields are automatically mapped from Ash types to UI components:
 
-```elixir
-defmodule MyApp.Billing.Clinic do
-  use Ash.Resource,
-    domain: MyApp.Billing,
-    extensions: [AshFormBuilder]
+| Ash Type          | UI Type                 |
+|-------------------|-------------------------|
+| `:string`         | `:text_input`           |
+| `:integer`        | `:number`               |
+| `:boolean`        | `:checkbox`             |
+| `:date`           | `:date`                 |
+| `:datetime`       | `:datetime`             |
+| `:atom` + `one_of`| `:select`               |
+| `many_to_many`    | `:multiselect_combobox` |
 
-  # ... attributes and relationships ...
+### Creatable Combobox ⭐ NEW
 
-  form do
-    action :create
-
-    field :doctors do
-      type :multiselect_combobox
-      opts [
-        search_event: "search_doctors",
-        search_param: "query",
-        debounce: 300,
-        label_key: :full_name,
-        value_key: :id
-      ]
-    end
-  end
-end
-```
-
-### Handling Search in LiveView
-
-```elixir
-defmodule MyAppWeb.ClinicLive.Form do
-  use MyAppWeb, :live_view
-
-  alias MyApp.Billing
-
-  @impl true
-  def mount(_params, _session, socket) do
-    form = Billing.Clinic.Form.for_create(actor: socket.assigns.current_user)
-    {:ok, assign(socket, form: form, doctor_options: preload_doctors())}
-  end
-
-  @impl true
-  def handle_event("search_doctors", %{"query" => query}, socket) do
-    doctors =
-      Billing.Doctor
-      |> Ash.Query.filter(name_contains: query)
-      |> Billing.read!(actor: socket.assigns.current_user)
-      |> Enum.map(&{&1.full_name, &1.id})
-
-    {:noreply, push_event(socket, "update_combobox_options", %{
-      field: "doctors",
-      options: doctors
-    })}
-  end
-
-  defp preload_doctors do
-    Billing.list_doctors!()
-    |> Enum.map(&{&1.full_name, &1.id})
-  end
-end
-```
-
----
-
-## 🎨 Themes
-
-### Default Theme
-
-Emits semantic HTML with minimal CSS class hooks — no framework dependency.
-
-```elixir
-config :ash_form_builder, :theme, AshFormBuilder.Themes.Default
-```
-
-### MishkaChelekom Theme
-
-Full integration with [MishkaChelekom](https://github.com/mishka-group/mishka_chelekom) components.
-
-**Setup:**
-
-1. Generate the required components:
-
-```bash
-mix mishka.ui.gen.component text_field
-mix mishka.ui.gen.component textarea_field
-mix mishka.ui.gen.component native_select
-mix mishka.ui.gen.component checkbox_field
-mix mishka.ui.gen.component number_field
-mix mishka.ui.gen.component email_field
-mix mishka.ui.gen.component password_field
-mix mishka.ui.gen.component date_time_field
-mix mishka.ui.gen.component url_field
-mix mishka.ui.gen.component combobox
-```
-
-2. Configure the theme:
-
-```elixir
-config :ash_form_builder, :theme, AshFormBuilder.Theme.MishkaTheme
-```
-
-3. The `:multiselect_combobox` will now render as a full-featured MishkaChelekom combobox with search support!
-
----
-
-## 🛠️ Advanced DSL Usage
-
-### Explicit Field Configuration
-
-While auto-inference works for most cases, you can customize fields explicitly:
+Allow users to create new related records on-the-fly:
 
 ```elixir
 form do
-  action :create
-  submit_label "Create Clinic"
-
-  field :name do
-    label "Clinic Name"
-    placeholder "Enter clinic name"
-    required true
-  end
-
-  field :status do
-    type :select
-    options [{"Active", :active}, {"Inactive", :inactive}]
-  end
-
-  field :description do
-    type :textarea
-    rows 6
+  field :tags do
+    type :multiselect_combobox
+    label "Tags"
+    placeholder "Search or create tags..."
+    
+    opts [
+      creatable: true,              # ← Enable creating new items
+      create_action: :create,
+      create_label: "Create \"\"",
+      search_event: "search_tags",
+      debounce: 300,
+      label_key: :name,
+      value_key: :id
+    ]
   end
 end
 ```
 
-### Nested Forms
+### Nested Forms (has_many)
 
-For one-to-many relationships:
+Dynamic add/remove for child records:
 
 ```elixir
 form do
-  action :create
-
-  nested :appointments do
-    label "Appointments"
+  nested :subtasks do
+    label "Subtasks"
     cardinality :many
-    add_label "Add Appointment"
-    remove_label "Remove"
-
-    field :date do
-      type :datetime
+    add_label "Add Subtask"
+    
+    field :title do
+      label "Subtask"
       required true
     end
-
-    field :notes do
-      type :textarea
-    end
-  end
-end
-```
-
-### Multiple Forms per Resource
-
-```elixir
-defmodule MyApp.Todos.Todo do
-  use Ash.Resource,
-    domain: MyApp.Todos,
-    extensions: [AshFormBuilder]
-
-  # Create form
-  form do
-    action :create
-    submit_label "Create Todo"
-
-    field :title, label: "Title", required: true
-    field :priority, type: :select, options: [{"Low", 1}, {"High", 2}]
-  end
-
-  # Update form with custom module name
-  form do
-    action :update
-    module MyApp.Todos.Todo.UpdateForm
-    submit_label "Update Todo"
-
-    field :title, label: "Title"
-    field :completed, type: :checkbox, label: "Done?"
   end
 end
 ```
 
 ---
 
-## 🔧 Introspection
+## 📚 Documentation
 
-Access the inferred form schema at runtime:
+### Guides
 
-```elixir
-# Get the complete schema
-MyApp.Billing.Clinic.Form.schema()
-# => %{
-#   fields: [
-#     %{name: :name, type: :text_input, required: true, ...},
-#     %{name: :doctors, type: :multiselect_combobox, relationship: :doctors, ...}
-#   ],
-#   nested_forms: [...]
-# }
+Comprehensive guides are available in the `guides/` directory:
 
-# Get nested forms configuration for AshPhoenix.Form
-MyApp.Billing.Clinic.Form.nested_forms()
-# => [doctors: [type: :list, resource: MyApp.Billing.Doctor, ...]]
+1. **[Todo App Integration](guides/todo_app_integration.exs)** - Complete step-by-step tutorial
+2. **[Relationships Guide](guides/relationships_guide.exs)** - has_many vs many_to_many, filtering, limits
+3. **[Example Usage](example_usage.exs)** - Reference documentation with all features
+
+### Module Documentation
+
+Generate local docs:
+```bash
+mix docs
 ```
 
 ---
 
-## ✅ Domain-Driven Validation Assurance
+## ⚠️ Experimental Status
 
-Using the Domain Code Interface ensures all Ash features work automatically:
+**This package is EXPERIMENTAL and under active development.**
 
-**Policy Enforcement:**
-```elixir
-policies do
-  policy action_type(:create) do
-    authorize_if actor_present()
-  end
-end
-```
+### What This Means
 
-**Validations:**
-```elixir
-validations do
-  validate present([:name, :address])
-  validate match(:phone, ~r/^\+?[\d\s-]+$/)
-end
-```
+- ✅ Core functionality is working and tested
+- ⚠️ API may change without notice
+- ⚠️ Breaking changes likely in minor versions (0.x.y)
+- ⚠️ Not all edge cases are handled
+- ⚠️ Documentation may be incomplete
 
-**Preparations & Changes:**
-```elixir
-changes do
-  change atomic_update(:updated_at, &DateTime.utc_now/0)
-end
+### For Production Use
 
-preparations do
-  prepare MyApp.SomePreparation
-end
-```
+If you choose to use this in production:
 
-All are automatically applied when using `Clinic.Form.for_create/1` through the Domain Code Interface.
+1. **Pin to exact version**: `{:ash_form_builder, "== 0.1.0"}`
+2. **Test thoroughly** before deployment
+3. **Monitor the repository** for updates and breaking changes
+4. **Be prepared** to handle breaking changes on upgrade
+5. **Consider contributing** fixes and improvements
 
----
+### Roadmap to 1.0
 
-## 📚 Field Types Reference
+Planned features for stable release:
 
-| Ash Type | UI Type | Notes |
-|----------|---------|-------|
-| `:string` | `:text_input` | Standard text input |
-| `:integer`, `:decimal`, `:float` | `:number` | Numeric input |
-| `:boolean` | `:checkbox` | Boolean checkbox |
-| `:date` | `:date` | Date picker |
-| `:datetime`, `:utc_datetime` | `:datetime` | DateTime picker |
-| `:enum`, atom with `values/0` | `:select` | Dropdown with options |
-| `many_to_many` | `:multiselect_combobox` | Searchable multi-select |
-
-**All Field Types:** `:text_input`, `:textarea`, `:select`, `:multiselect_combobox`, `:checkbox`, `:number`, `:email`, `:password`, `:date`, `:datetime`, `:hidden`, `:url`, `:tel`
+- [ ] Better creatable value extraction
+- [ ] Loading states for async operations
+- [ ] Inline error handling
+- [ ] i18n support via GetText
+- [ ] Field-level permissions
+- [ ] Conditional field rendering
+- [ ] Multi-step form wizards
+- [ ] Form draft auto-save
+- [ ] More comprehensive test coverage
 
 ---
 
-## 📝 License
+## 🔧 Configuration
 
-This project is MIT licensed.
+### Theme System
+
+AshFormBuilder uses a theme system for UI customization:
+
+```elixir
+# config/config.exs
+
+# Default theme (semantic HTML)
+config :ash_form_builder, :theme, AshFormBuilder.Themes.Default
+
+# MishkaChelekom theme (requires mishka_chelekom dependency)
+config :ash_form_builder, :theme, AshFormBuilder.Theme.MishkaTheme
+
+# Custom theme (implement AshFormBuilder.Theme behaviour)
+config :ash_form_builder, :theme, MyAppWeb.CustomTheme
+```
+
+### Creating Custom Themes
+
+See `example_usage.ex` for a complete custom theme example.
+
+---
+
+## 🧪 Testing
+
+Run the test suite:
+```bash
+mix test
+```
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! This is an experimental project, and community feedback will help shape its development.
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+---
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+---
+
+## 🙏 Acknowledgments
+
+- [Ash Framework](https://ash-hq.org/) - The excellent Elixir framework for building maintainable applications
+- [Phoenix LiveView](https://hexdocs.pm/phoenix_live_view) - Real-time HTML without writing JavaScript
+- [MishkaChelekom](https://github.com/mishka-group/mishka_chelekom) - UI component library
+
+---
+
+**Built with ❤️ using Ash Framework**
