@@ -7,6 +7,13 @@ defmodule AshFormBuilder.ThemeTest do
 
   alias AshFormBuilder.Field
 
+  setup do
+    # Ensure theme modules are loaded
+    Code.ensure_loaded?(AshFormBuilder.Themes.Default)
+    Code.ensure_loaded?(AshFormBuilder.Theme.MishkaTheme)
+    :ok
+  end
+
   describe "Default Theme" do
     test "implements render_field/2" do
       assert function_exported?(AshFormBuilder.Themes.Default, :render_field, 2)

@@ -560,8 +560,8 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
   end
 
   defp render_checkbox(assigns) do
-    assigns =
-      Map.put(assigns, :field_errors, extract_field_errors(assigns.form, assigns.field.name))
+    field_errors = extract_field_errors(assigns.form, assigns.field.name)
+    assigns = Map.put(assigns, :field_errors, field_errors)
 
     ~H"""
     <.checkbox_field
@@ -578,10 +578,8 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
   end
 
   defp render_number(assigns) do
-    assigns =
-      Map.put(assigns, 
-        field_errors: extract_field_errors(assigns.form, assigns.field.name)
-      )
+    field_errors = extract_field_errors(assigns.form, assigns.field.name)
+    assigns = Map.put(assigns, :field_errors, field_errors)
 
     ~H"""
     <.number_field
@@ -600,10 +598,8 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
   end
 
   defp render_email(assigns) do
-    assigns =
-      Map.put(assigns, 
-        field_errors: extract_field_errors(assigns.form, assigns.field.name)
-      )
+    field_errors = extract_field_errors(assigns.form, assigns.field.name)
+    assigns = Map.put(assigns, :field_errors, field_errors)
 
     ~H"""
     <.email_field
@@ -622,10 +618,8 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
   end
 
   defp render_password(assigns) do
-    assigns =
-      Map.put(assigns, 
-        field_errors: extract_field_errors(assigns.form, assigns.field.name)
-      )
+    field_errors = extract_field_errors(assigns.form, assigns.field.name)
+    assigns = Map.put(assigns, :field_errors, field_errors)
 
     ~H"""
     <.password_field
@@ -644,10 +638,8 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
   end
 
   defp render_date(assigns) do
-    assigns =
-      Map.put(assigns, 
-        field_errors: extract_field_errors(assigns.form, assigns.field.name)
-      )
+    field_errors = extract_field_errors(assigns.form, assigns.field.name)
+    assigns = Map.put(assigns, :field_errors, field_errors)
 
     ~H"""
     <.date_time_field
@@ -667,10 +659,8 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
   end
 
   defp render_datetime(assigns) do
-    assigns =
-      Map.put(assigns, 
-        field_errors: extract_field_errors(assigns.form, assigns.field.name)
-      )
+    field_errors = extract_field_errors(assigns.form, assigns.field.name)
+    assigns = Map.put(assigns, :field_errors, field_errors)
 
     ~H"""
     <.date_time_field
@@ -690,10 +680,8 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
   end
 
   defp render_url(assigns) do
-    assigns =
-      Map.put(assigns, 
-        field_errors: extract_field_errors(assigns.form, assigns.field.name)
-      )
+    field_errors = extract_field_errors(assigns.form, assigns.field.name)
+    assigns = Map.put(assigns, :field_errors, field_errors)
 
     ~H"""
     <.url_field
@@ -713,10 +701,8 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
 
   defp render_tel(assigns) do
     # MishkaChelekom may not have a specific tel field, use text_field with tel type
-    assigns =
-      Map.put(assigns, 
-        field_errors: extract_field_errors(assigns.form, assigns.field.name)
-      )
+    field_errors = extract_field_errors(assigns.form, assigns.field.name)
+    assigns = Map.put(assigns, :field_errors, field_errors)
 
     ~H"""
     <.text_field
@@ -736,8 +722,8 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
   end
 
   defp render_text_input(assigns) do
-    assigns =
-      Map.put(assigns, :field_errors, extract_field_errors(assigns.form, assigns.field.name))
+    field_errors = extract_field_errors(assigns.form, assigns.field.name)
+    assigns = Map.put(assigns, :field_errors, field_errors)
 
     ~H"""
     <.text_field

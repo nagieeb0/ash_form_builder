@@ -214,6 +214,35 @@ defmodule AshFormBuilder.Test.Resources do
   end
 
   # ---------------------------------------------------------------------------
+  # BlogPostCategory — Join resource (must be defined before BlogPost)
+  # ---------------------------------------------------------------------------
+
+  defmodule BlogPostCategory do
+    use Ash.Resource,
+      domain: AshFormBuilder.Test.Resources.Blog,
+      data_layer: Ash.DataLayer.Ets
+
+    ets do
+      private?(true)
+    end
+
+    attributes do
+      uuid_primary_key(:id)
+      attribute(:blog_post_id, :uuid, allow_nil?: false, public?: true)
+      attribute(:category_id, :uuid, allow_nil?: false, public?: true)
+    end
+
+    relationships do
+      belongs_to(:blog_post, BlogPost)
+      belongs_to(:category, Category)
+    end
+
+    actions do
+      defaults([:read, :destroy, create: [:blog_post_id, :category_id]])
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # BlogPost — many_to_many with Categories (creatable support)
   # ---------------------------------------------------------------------------
 
@@ -287,31 +316,6 @@ defmodule AshFormBuilder.Test.Resources do
           value_key: :id
         )
       end
-    end
-  end
-
-  # ---------------------------------------------------------------------------
-  # BlogPostCategory — Join resource
-  # ---------------------------------------------------------------------------
-
-  defmodule BlogPostCategory do
-    use Ash.Resource,
-      domain: AshFormBuilder.Test.Resources.Blog,
-      data_layer: Ash.DataLayer.Ets
-
-    ets do
-      private?(true)
-    end
-
-    attributes do
-      uuid_primary_key(:id)
-      attribute(:blog_post_id, :uuid, allow_nil?: false, public?: true)
-      attribute(:category_id, :uuid, allow_nil?: false, public?: true)
-    end
-
-    relationships do
-      belongs_to(:blog_post, BlogPost)
-      belongs_to(:category, Category)
     end
   end
 

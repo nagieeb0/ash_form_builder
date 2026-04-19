@@ -205,8 +205,11 @@ defmodule AshFormBuilder.Infer do
       # Process action arguments
       arg_fields = process_arguments(action.arguments || [])
 
-      # Combine in order: arguments first, then accept fields
-      arg_fields ++ accept_fields
+      # Detect manage_relationship relationships not in accept list
+      manage_rel_fields = process_manage_relationships(resource, action, opts)
+
+      # Combine in order: arguments first, then accept fields, then manage_relationship fields
+      arg_fields ++ accept_fields ++ manage_rel_fields
     end
   end
 
@@ -344,6 +347,50 @@ defmodule AshFormBuilder.Infer do
     |> Enum.reject(&is_nil/1)
   end
 
+  defp process_manage_relationships(resource, action, opts) do
+    # Get relationships configured with manage_relationship in the action
+    action
+    |> get_manage_relationship_names()
+    |> Enum.reject(&should_ignore?(&1, opts))
+    |> Enum.map(&infer_manage_relationship(&1, resource, opts))
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp get_manage_relationship_names(action) do
+    # Extract relationship names from manage_relationship configurations
+    # In Ash 3.0, the changes list contains the manage_relationship configuration
+    case action do
+      %Ash.Resource.Actions.Create{changes: changes} ->
+        extract_manage_rels_from_changes(changes)
+
+      %Ash.Resource.Actions.Update{changes: changes} ->
+        extract_manage_rels_from_changes(changes)
+
+      _ ->
+        []
+    end
+  end
+
+  defp extract_manage_rels_from_changes(changes) do
+    changes
+    |> Enum.flat_map(fn change ->
+      # Changes can be various structs, we look for relationship-related changes
+      cond do
+        # Check if it's a manage_relationship change (has :relationship key)
+        is_map(change) and Map.has_key?(change, :relationship) and is_atom(change.relationship) ->
+          [change.relationship]
+
+        # Check if it's a struct with relationship field
+        is_struct(change) and Map.has_key?(change, :relationship) and is_atom(change.relationship) ->
+          [change.relationship]
+
+        true ->
+          []
+      end
+    end)
+    |> Enum.uniq()
+  end
+
   defp should_ignore?(field_name, opts) do
     field_name in opts[:ignore_fields] or
       (not opts[:include_timestamps] and field_name in [:inserted_at, :updated_at])
@@ -407,6 +454,26 @@ defmodule AshFormBuilder.Infer do
 
       _other ->
         nil
+    end
+  end
+
+  defp infer_manage_relationship(rel_name, resource, opts) do
+    # Get the relationship from the resource
+    case Ash.Resource.Info.relationship(resource, rel_name) do
+      nil ->
+        nil
+
+      rel ->
+        case rel.type do
+          :many_to_many ->
+            build_combobox_field(rel, opts)
+
+          :belongs_to ->
+            build_belongs_to_field(rel, opts)
+
+          _ ->
+            nil
+        end
     end
   end
 

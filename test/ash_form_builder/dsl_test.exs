@@ -6,6 +6,13 @@ defmodule AshFormBuilder.DslTest do
   alias AshFormBuilder.Info
   alias AshFormBuilder.Test.DslSampleResource
 
+  setup do
+    # Ensure the DslSampleResource module is fully loaded
+    Code.ensure_loaded?(DslSampleResource)
+    Code.ensure_loaded?(DslSampleResource.Form)
+    :ok
+  end
+
   describe "DSL entities" do
     test "form block is parsed" do
       assert Info.form_action(DslSampleResource) == :create

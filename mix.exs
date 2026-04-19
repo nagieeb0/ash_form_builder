@@ -2,7 +2,7 @@ defmodule AshFormBuilder.MixProject do
   use Mix.Project
 
   @source_url "https://github.com/nagieeb0/ash_form_builder"
-  @version "0.2.1"
+  @version "0.2.3"
 
   def project do
     [
@@ -73,10 +73,12 @@ defmodule AshFormBuilder.MixProject do
       authors: ["Nagieeb"],
       extras: [
         "README.md",
-        "CHANGELOG.md"
+        "CHANGELOG.md",
+        "guides/theme_customization_guide.md"
       ],
       groups_for_extras: [
-        "": ["README.md", "CHANGELOG.md"]
+        "": ["README.md", "CHANGELOG.md"],
+        Guides: ["guides/theme_customization_guide.md"]
       ],
       groups_for_modules: [
         "Core API": [
@@ -93,7 +95,9 @@ defmodule AshFormBuilder.MixProject do
         Themes: [
           AshFormBuilder.Theme,
           AshFormBuilder.Theme.MishkaTheme,
-          AshFormBuilder.Themes.Default
+          AshFormBuilder.Themes.Default,
+          AshFormBuilder.Themes.Glassmorphism,
+          AshFormBuilder.Themes.Shadcn
         ],
         Internal: [
           AshFormBuilder.Transformers.GenerateFormModule,

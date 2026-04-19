@@ -430,14 +430,42 @@ defmodule AshFormBuilder.FormComponent do
 
   @doc false
   def parse_nested_path(path_string) do
-    path_string
-    |> String.split(".")
-    |> Enum.map(&parse_path_segment/1)
+    # Handle paths like:
+    # - "subtasks" (simple nested form)
+    # - "subtasks[0]" (indexed nested form)
+    # - "form[subtasks]" (Phoenix.HTML.Form wrapped)
+    # - "form[subtasks][0]" (Phoenix.HTML.Form wrapped with index)
+    # - "level1[0].level2[1]" (deeply nested)
+
+    # First, strip "form[" prefix if present
+    path_string =
+      if String.starts_with?(path_string, "form[") do
+        # Remove "form[" prefix
+        path_string = String.replace_prefix(path_string, "form[", "")
+        # Remove trailing "]" to match the opening "form["
+        # But be careful not to remove "]" that's part of an index like "[0]"
+        # The pattern is "form[field][index]" or "form[field]"
+        # After removing "form[", we have "field][index]" or "field]"
+        # We need to remove only the LAST "]" that closes the "form["
+        String.replace_suffix(path_string, "]", "")
+      else
+        path_string
+      end
+
+    # Now split by "." for multi-level nesting
+    segments = String.split(path_string, ".")
+    Enum.map(segments, &parse_path_segment/1)
   end
 
   defp parse_path_segment(segment) do
     # Handle paths like "subtasks[0]" or "field[]" or just "field"
+    # Also handle malformed paths like "subtasks][0" from "form[subtasks][0]"
     cond do
+      # Handle "subtasks][0" or "subtasks][0]" format (from "form[subtasks][0]")
+      match = Regex.run(~r/^(\w+)\]\[(\d+)\]?$/, segment) ->
+        [_, field, index] = match
+        {String.to_existing_atom(field), String.to_integer(index)}
+
       # Empty brackets like field[]
       Regex.match?(~r/\[\]$/, segment) ->
         field = Regex.replace(~r/\[\]$/, segment, "")

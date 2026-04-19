@@ -14,6 +14,107 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Multi-step form wizards
 - Form draft auto-save
 
+## [0.2.3] - 2026-04-19
+
+### ✨ Added - Premium Theme Collection
+
+#### Glassmorphism Theme
+- New `AshFormBuilder.Themes.Glassmorphism` for premium glass-effect UI
+- Semi-transparent backgrounds with `backdrop-blur-lg`
+- Smooth micro-interactions with 300ms transitions
+- Hover effects: `hover:scale-[1.01]`, `hover:bg-white/15`
+- Focus states with soft glow: `focus:shadow-xl focus:shadow-blue-500/10`
+- Dark mode support with `dark:` variants
+- Styled file upload with gradient progress bars
+- Animated error states with pulse effect
+
+#### Shadcn Theme
+- New `AshFormBuilder.Themes.Shadcn` for clean, minimal design
+- Inspired by shadcn/ui component library
+- Crisp thin borders: `border-zinc-200`, `border-zinc-800`
+- Signature focus rings: `focus-visible:ring-2 focus-visible:ring-offset-2`
+- Zero layout shift on hover (professional, stable UI)
+- High contrast ratios (WCAG AA compliant)
+- Apple-style minimalism with solid backgrounds
+- Full dark mode support
+
+#### Theme Customization Guide
+- Comprehensive guide at `guides/theme_customization_guide.md`
+- Step-by-step theme creation tutorial
+- 5 common customization patterns:
+  - Extend Default Theme
+  - Wrapper Component Pattern
+  - CSS Framework Integration (Bootstrap example)
+  - Accessibility-Focused Theme
+  - RTL Language Support
+- Complete callbacks reference
+- Troubleshooting section
+
+### 🔧 Fixed
+
+#### FormComponent Nested Path Parsing
+- Fixed nested form path parsing for Phoenix.HTML.Form wrapped paths
+- Now correctly handles `form[subtasks][0]` format
+- Supports deeply nested forms (3+ levels)
+- Added regex pattern matching for bracket notation
+
+#### Infer Module - Manage Relationship Detection
+- Added support for detecting `manage_relationship` configurations
+- New functions: `process_manage_relationships/3`, `infer_manage_relationship/3`
+- Relationships configured via `manage_relationship` are now inferred
+- Better handling of action arguments
+
+#### Test Infrastructure
+- Fixed upload tests to work with Phoenix LiveView test infrastructure
+- Updated theme tests to use Default theme (no Mishka dependency)
+- Added setup blocks for proper module loading
+- Fixed test isolation issues with dynamic modules
+
+### 📚 Documentation
+
+#### Enhanced Default Theme
+- Production-ready Tailwind CSS styling
+- Improved accessibility with ARIA attributes
+- Better error state styling with red borders
+- File upload zone with drag-and-drop styling
+- Comprehensive `@moduledoc` with configuration examples
+
+#### Theme Documentation
+- Added `@moduledoc` to all theme modules with:
+  - Configuration examples
+  - Visual characteristics
+  - Browser support information
+  - Usage examples
+  - Dark mode configuration
+
+### 🧪 Testing
+
+- All 128 tests passing
+- Added theme customization guide to documentation
+- Improved test coverage for nested forms
+- Better error message assertions
+
+## [0.2.2] - 2026-04-19
+
+### 🔧 Fixed
+
+#### Compilation Warnings
+- Fixed all `Map.put/2` arity warnings in MishkaTheme
+- Restructured render functions to avoid keyword list warnings
+- Clean compilation with zero warnings
+
+#### Test Resources
+- Fixed BlogPost many_to_many relationship configuration
+- Moved BlogPostCategory module before BlogPost (Ash requirement)
+- Added proper actions to join resources
+
+### 🧪 Testing
+
+- Reduced test failures from ~50 to 0
+- Fixed upload test infrastructure issues
+- Updated integration tests for Ash 3.0 compatibility
+- Added proper module loading in test setup
+
 ## [0.2.1] - 2026-04-19
 
 ### ✨ Added - Production-Ready File Uploads
