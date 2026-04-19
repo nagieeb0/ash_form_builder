@@ -66,7 +66,7 @@ defmodule AshFormBuilder.MixProject do
 
   defp docs do
     [
-      main: "README",
+      main: "readme",
       title: "AshFormBuilder v#{@version}",
       source_ref: "v#{@version}",
       source_url: @source_url,
