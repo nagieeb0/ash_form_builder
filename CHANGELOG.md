@@ -19,7 +19,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Multi-step form wizards
 - Form draft auto-save
 
-## [0.1.0] - 2024-XX-XX
+## [0.1.1] - 2024-12-19
+
+### Added
+- Enhanced documentation configuration for hexdocs.pm
+- Comprehensive guides in `guides/` directory
+- Todo App integration tutorial
+- Relationships guide (has_many vs many_to_many)
+- Documentation structure guide
+
+### Changed
+- Version bumped to 0.1.1 for documentation improvements
+- Simplified ExDoc configuration for better compatibility
+
+### Fixed
+- Documentation main page now correctly shows AshFormBuilder module
+
+## [0.1.0] - 2024-12-19
 
 ### Added
 - **Initial release** - EXPERIMENTAL
@@ -63,7 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation may be incomplete
 
 For production use, consider:
-1. Pinning to exact version: `{:ash_form_builder, "== 0.1.0"}`
+1. Pinning to exact version: `{:ash_form_builder, "== 0.1.1"}`
 2. Monitoring the repository for updates
 3. Testing thoroughly before deployment
 4. Being prepared to handle breaking changes on upgrade

@@ -4,7 +4,7 @@ defmodule AshFormBuilder.MixProject do
   def project do
     [
       app: :ash_form_builder,
-      version: "0.1.0",
+      version: "0.1.1",
       elixir: "~> 1.17",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -55,20 +55,11 @@ defmodule AshFormBuilder.MixProject do
   
   defp docs do
     [
-      main: "readme",
+      main: "AshFormBuilder",
+      title: "AshFormBuilder v#{project()[:version]}",
       source_ref: "v#{project()[:version]}",
       source_url: project()[:source_url],
-      extras: [
-        "README.md",
-        "CHANGELOG.md",
-        "guides/todo_app_integration.exs",
-        "guides/relationships_guide.exs",
-        "example_usage.ex"
-      ],
-      groups_for_extras: [
-        Guides: ["guides/todo_app_integration.exs", "guides/relationships_guide.exs"],
-        Examples: ["example_usage.ex"]
-      ],
+      extras: [],
       groups_for_modules: [
         "Core Modules": [
           AshFormBuilder,

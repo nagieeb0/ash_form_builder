@@ -3,7 +3,8 @@
     "allow": [
       "Bash(mix *)",
       "Bash(git add *)",
-      "Bash(mkdir *)"
+      "Bash(mkdir *)",
+      "Bash(ls *)"
     ]
   },
   "$version": 3
