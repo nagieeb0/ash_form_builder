@@ -59,6 +59,8 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
 
   use Phoenix.Component
 
+  alias Phoenix.HTML.Form, as: HTMLForm
+
   # Strict MishkaChelekom component imports
   # These components must be generated in your host application using:
   #   mix mishka.ui.gen.component <name>
@@ -304,7 +306,7 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
 
   defp get_delete_flag(form, field_name) do
     # Check if delete flag is set in form params
-    case Phoenix.HTML.Form.input_value(form, "#{field_name}_delete") do
+    case HTMLForm.input_value(form, "#{field_name}_delete") do
       "true" -> true
       _ -> false
     end
@@ -355,7 +357,7 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
 
   defp get_existing_file_path(form, field_name) do
     # Try to get existing value from form
-    case Phoenix.HTML.Form.input_value(form, field_name) do
+    case HTMLForm.input_value(form, field_name) do
       nil -> nil
       "" -> nil
       value -> value
@@ -375,9 +377,9 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
     ~H"""
     <input
       type="hidden"
-      id={Phoenix.HTML.Form.input_id(@form, @field.name)}
-      name={Phoenix.HTML.Form.input_name(@form, @field.name)}
-      value={Phoenix.HTML.Form.input_value(@form, @field.name)}
+      id={HTMLForm.input_id(@form, @field.name)}
+      name={HTMLForm.input_name(@form, @field.name)}
+      value={HTMLForm.input_value(@form, @field.name)}
     />
     """
   end
@@ -437,8 +439,8 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
       <%!-- Strict MishkaChelekom combobox usage --%>
       <.combobox
         field={@form[@field.name]}
-        id={Phoenix.HTML.Form.input_id(@form, @field.name)}
-        name={Phoenix.HTML.Form.input_name(@form, @field.name) <> "[]"}
+        id={HTMLForm.input_id(@form, @field.name)}
+        name={HTMLForm.input_name(@form, @field.name) <> "[]"}
         label={@field.label}
         placeholder={@placeholder}
         multiple={@multiple}
@@ -767,7 +769,7 @@ defmodule AshFormBuilder.Theme.MishkaTheme do
   end
 
   defp extract_combobox_values(form, field_name) do
-    case Phoenix.HTML.Form.input_value(form, field_name) do
+    case HTMLForm.input_value(form, field_name) do
       nil -> []
       values when is_list(values) -> values
       value -> [value]

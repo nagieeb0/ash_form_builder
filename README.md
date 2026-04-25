@@ -5,13 +5,14 @@
 [![Hex.pm](https://img.shields.io/hexpm/l/ash_form_builder.svg)](https://hex.pm/packages/ash_form_builder)
 [![Documentation](https://img.shields.io/badge/hex.pm-docs-green.svg)](https://hexdocs.pm/ash_form_builder)
 
-**Latest Version:** [0.2.3](https://hex.pm/packages/ash_form_builder/0.2.3) | [Changelog](CHANGELOG.md)
+**Latest Version:** [0.3.0](https://hex.pm/packages/ash_form_builder/0.3.0) | [Changelog](CHANGELOG.md)
 
-**AshFormBuilder = AshPhoenix.Form + Auto UI + Smart Components + Themes**
+**AshFormBuilder = AshPhoenix.Form + Auto UI + Smart Components + Themes + Full CRUD Generator**
 
 A declarative form generation engine for [Ash Framework](https://hexdocs.pm/ash) and [Phoenix LiveView](https://hexdocs.pm/phoenix_live_view).
 
 Define your form structure in **1-3 lines** inside your Ash Resource, and get a complete, policy-compliant LiveView form with:
+- ✅ **Full CRUD LiveView generator** — one command, production-grade scaffold (New in v0.3.0)
 - ✅ Auto-inferred fields from your action's `accept` list
 - ✅ Searchable combobox for many-to-many relationships
 - ✅ Creatable combobox (create related records on-the-fly)
@@ -25,15 +26,17 @@ Define your form structure in **1-3 lines** inside your Ash Resource, and get a 
 
 | Layer | AshPhoenix.Form | AshFormBuilder |
 |-------|----------------|----------------|
+| **CRUD Scaffold** | ❌ Write it all yourself | ✅ **`mix ash_form_builder.gen.live`** |
+| **Data Table** | ❌ Build your own | ✅ **Cinder (filter, sort, paginate, URL sync)** |
 | **Form State** | ✅ Provides `AshPhoenix.Form` | ✅ Uses `AshPhoenix.Form` |
 | **Field Inference** | ❌ Manual field definition | ✅ **Auto-infers from action.accept** |
 | **UI Components** | ❌ You render everything | ✅ **Smart components per field type** |
 | **Themes** | ❌ No theming | ✅ **Pluggable theme system** |
 | **Combobox** | ❌ Build your own | ✅ **Searchable + Creatable built-in** |
 | **Nested Forms** | ❌ Manual setup | ✅ **Auto nested forms with add/remove** |
-| **Lines of Code** | ~20-50 lines | **~1-3 lines** |
+| **Lines of Code** | ~20-50 lines | **~1-3 lines** (or one command) |
 
-**In short:** AshPhoenix.Form gives you the engine. AshFormBuilder gives you the complete car.
+**In short:** AshPhoenix.Form gives you the engine. AshFormBuilder gives you the complete car — factory-delivered.
 
 ---
 
@@ -42,7 +45,7 @@ Define your form structure in **1-3 lines** inside your Ash Resource, and get a 
 ### 1. Add to mix.exs
 
 ```elixir
-{:ash_form_builder, "~> 0.2.3"}
+{:ash_form_builder, "~> 0.3.0"}
 ```
 
 ### 2. Configure Theme (config/config.exs)
@@ -576,8 +579,11 @@ end
      [
        {:ash, "~> 3.0"},
        {:ash_phoenix, "~> 2.0"},
-       {:ash_form_builder, "~> 0.2.3"},
-       
+       {:ash_form_builder, "~> 0.3.0"},
+
+       # Required if using mix ash_form_builder.gen.live
+       {:cinder, "~> 0.12"},
+
        # Optional: For MishkaChelekom theme
        {:mishka_chelekom, "~> 0.0.8"}
      ]
@@ -603,6 +609,164 @@ end
      domain: MyApp.Todos,
      extensions: [AshFormBuilder]
    ```
+
+---
+
+## 🚀 Magic Generators (New in v0.3.0)
+
+One command. Full CRUD. Production-grade LiveView in seconds.
+
+```bash
+mix ash_form_builder.gen.live Accounts User
+```
+
+That's it. The generator outputs two ready-to-use files wired with **Cinder** for the data table and **AshFormBuilder** inside a Phoenix modal for create/edit — no boilerplate to write.
+
+### What Gets Generated
+
+| File | Contents |
+|------|----------|
+| `lib/my_app_web/live/user_live/index.ex` | Full LiveView: `mount`, `handle_params`, `handle_info`, `handle_event` |
+| `lib/my_app_web/live/user_live/index.html.heex` | HEEx template: Cinder table + modal with `AshFormBuilder.FormComponent` |
+
+### Generated `index.ex` — the LiveView
+
+```elixir
+defmodule MyAppWeb.UserLive.Index do
+  use MyAppWeb, :live_view
+  use Cinder.UrlSync         # injects handle_info for URL sync automatically
+
+  alias MyApp.Accounts.User
+
+  @collection_id "user-collection"
+
+  def mount(_params, _session, socket) do
+    {:ok, assign(socket, url_state: false, record: nil, form: nil)}
+  end
+
+  def handle_params(params, uri, socket) do
+    socket = Cinder.UrlSync.handle_params(params, uri, socket)
+    {:noreply, apply_action(socket, socket.assigns.live_action, params)}
+  end
+
+  # Triggered by AshFormBuilder.FormComponent after a successful Ash action
+  def handle_info({:form_submitted, User, _result}, socket) do
+    {:noreply,
+     socket
+     |> put_flash(:info, "User saved successfully.")
+     |> Cinder.refresh_table(@collection_id)   # async re-query, no page reload
+     |> push_patch(to: ~p"/users")}
+  end
+
+  def handle_event("delete", %{"id" => id}, socket) do
+    User |> Ash.get!(id, actor: socket.assigns[:current_user])
+         |> Ash.destroy!(actor: socket.assigns[:current_user])
+    {:noreply, socket |> put_flash(:info, "User deleted.") |> Cinder.refresh_table(@collection_id)}
+  end
+end
+```
+
+**Every callback is fully wired:**
+
+| Callback | Behaviour |
+|----------|-----------|
+| `mount/3` | Initialises `url_state`, `record`, `form` assigns |
+| `handle_params/3` | Delegates to `Cinder.UrlSync`; routes `:new` / `:edit` live actions |
+| `apply_action :new` | Builds `AshPhoenix.Form.for_create` |
+| `apply_action :edit` | `Ash.get!` + `AshPhoenix.Form.for_update` |
+| `handle_info :form_submitted` | Flash + `Cinder.refresh_table` + `push_patch` to index |
+| `handle_event "delete"` | `Ash.get!` + `Ash.destroy!` + `Cinder.refresh_table` |
+
+### Generated `index.html.heex` — the template
+
+```heex
+<.header>
+  Users
+  <:actions>
+    <.link patch={~p"/users/new"}><.button>New User</.button></.link>
+  </:actions>
+</.header>
+
+<%!-- Cinder.collection: filterable, sortable, paginated — state synced to URL --%>
+<Cinder.collection
+  id="user-collection"
+  resource={MyApp.Accounts.User}
+  actor={assigns[:current_user]}
+  url_state={@url_state}
+  page_size={25}
+  empty_message="No users found."
+>
+  <%!-- TODO: Replace with your resource's real attributes (see Customising Columns) --%>
+  <:col :let={user} field="id" sort label="ID">{user.id}</:col>
+
+  <:col :let={user} label="Actions">
+    <.link patch={~p"/users/#{user}/edit"}>Edit</.link>
+    <.link phx-click="delete" phx-value-id={user.id}
+           data-confirm="Delete this user? This cannot be undone.">Delete</.link>
+  </:col>
+</Cinder.collection>
+
+<%!-- Modal: mounts only for :new and :edit live_actions --%>
+<.modal :if={@live_action in [:new, :edit]} id="user-modal" show
+        on_cancel={JS.patch(~p"/users")}>
+  <.live_component
+    module={AshFormBuilder.FormComponent}
+    id={if @record, do: "user-edit-#{@record.id}", else: "user-new"}
+    resource={MyApp.Accounts.User}
+    form={@form}
+    submit_label={if @live_action == :new, do: "Create User", else: "Save Changes"}
+  />
+</.modal>
+```
+
+### Router Entries (printed by the generator)
+
+```elixir
+scope "/", MyAppWeb do
+  pipe_through :browser
+
+  live "/users",          UserLive.Index, :index
+  live "/users/new",      UserLive.Index, :new
+  live "/users/:id/edit", UserLive.Index, :edit
+end
+```
+
+### Generator Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--page-size` / `-p` | `25` | Rows per page in the Cinder table |
+| `--out` / `-o` | `lib/<app>_web/live/<resource>_live` | Output directory override |
+
+```bash
+mix ash_form_builder.gen.live Inventory Product --page-size 50
+mix ash_form_builder.gen.live Accounts User --out lib/my_app_web/live/admin
+```
+
+### Customising Columns
+
+After generation, open `index.html.heex` and replace the placeholder `<:col>` slots with your resource's real attributes:
+
+```heex
+<:col :let={user} field="name"        filter sort>{user.name}</:col>
+<:col :let={user} field="email"       filter>{user.email}</:col>
+<:col :let={user} field="role"        filter={:select}>{user.role}</:col>
+<:col :let={user} field="inserted_at" sort>{user.inserted_at}</:col>
+```
+
+Cinder column attributes:
+- `filter` — text filter input for that column
+- `filter={:select}` — dropdown filter for enum/atom fields
+- `sort` — enables column sort toggle
+- `search` — includes field in the global search bar (if configured)
+
+### Prerequisites
+
+The generator requires [Cinder](https://hex.pm/packages/cinder) for the data table. Add it to your `mix.exs`:
+
+```elixir
+{:cinder, "~> 0.12"}
+```
 
 ---
 
@@ -658,20 +822,23 @@ end
 
 ## ⚠️ Version Status
 
-**v0.2.0 - Production-Ready Beta**
+**v0.3.0 - Production-Ready**
 
 This version includes:
+- ✅ Full CRUD LiveView generator (`mix ash_form_builder.gen.live`)
+- ✅ Deep Cinder integration (data table, URL sync, async refresh)
 - ✅ Zero-config field inference
 - ✅ Searchable/creatable combobox
 - ✅ Dynamic nested forms
-- ✅ Pluggable theme system
+- ✅ Glassmorphism, Shadcn, Default, and MishkaChelekom themes
 - ✅ Full Ash policy enforcement
-- ✅ Comprehensive test suite
+- ✅ 180 tests, 0 failures
+- ✅ Clean `mix credo --strict` and `mix dialyzer`
 
 **Known Limitations:**
 - Deeply nested forms (3+ levels) require manual path handling
-- i18n support planned for v0.3.0
-- Field-level permissions planned for v0.3.0
+- i18n support planned for a future release
+- Field-level permissions planned for a future release
 
 ---
 

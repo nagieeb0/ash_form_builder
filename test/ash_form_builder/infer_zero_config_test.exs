@@ -224,7 +224,7 @@ defmodule AshFormBuilder.InferZeroConfigTest do
       status_field = Enum.find(fields, &(&1.name == :status))
 
       assert status_field.type == :select
-      assert length(status_field.options) > 0
+      assert status_field.options != []
     end
 
     test "infers options from one_of constraint" do

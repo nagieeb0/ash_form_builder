@@ -259,12 +259,14 @@ defmodule AshFormBuilder.FormComponent do
 
       # Consume uploaded entries and store files (if not deleting)
       result =
-        if not delete_flag do
-          Phoenix.LiveView.consume_uploaded_entries(socket, field.name, fn meta, entry ->
-            store_upload_entry(meta, entry, cloud_module, upload_config)
-          end)
-        else
+        if delete_flag do
           []
+        else
+          Phoenix.LiveView.consume_uploaded_entries(
+            socket,
+            field.name,
+            &store_upload_entry(&1, &2, cloud_module, upload_config)
+          )
         end
 
       # Filter out postponed entries (errors)
@@ -321,8 +323,11 @@ defmodule AshFormBuilder.FormComponent do
   defp cascade_delete_file(nil, _cloud_module, _upload_config), do: :ok
 
   defp delete_file_from_storage(path, cloud_module, upload_config) when is_binary(path) do
-    if not is_nil(cloud_module) do
-      # Create object from path for deletion
+    if is_nil(cloud_module) do
+      require Logger
+      Logger.info("File marked for deletion (no cloud module): #{path}")
+      :ok
+    else
       object = %Buckets.Object{
         uuid: generate_uuid_from_path(path),
         filename: Path.basename(path),
@@ -346,11 +351,6 @@ defmodule AshFormBuilder.FormComponent do
           Logger.error("Failed to delete file from storage: #{path} - #{inspect(reason)}")
           :error
       end
-    else
-      # No cloud module, just log
-      require Logger
-      Logger.info("File marked for deletion (no cloud module): #{path}")
-      :ok
     end
   end
 
@@ -540,18 +540,14 @@ defmodule AshFormBuilder.FormComponent do
       nil ->
         module_parts = Module.split(resource_mod)
 
-        if length(module_parts) >= 2 do
-          domain_parts = Enum.drop(module_parts, -1)
-          domain_mod = Module.concat(domain_parts)
-
-          if Code.ensure_loaded?(domain_mod) and
-               function_exported?(domain_mod, :__ash_domain__, 0) do
-            domain_mod
-          else
-            nil
-          end
+        with [_, _ | _] <- module_parts,
+             domain_parts = Enum.drop(module_parts, -1),
+             domain_mod = Module.concat(domain_parts),
+             true <- Code.ensure_loaded?(domain_mod),
+             true <- function_exported?(domain_mod, :__ash_domain__, 0) do
+          domain_mod
         else
-          nil
+          _ -> nil
         end
 
       domain ->

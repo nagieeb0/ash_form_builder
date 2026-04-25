@@ -6,6 +6,7 @@ defmodule AshFormBuilder.Test.Resources do
   # ---------------------------------------------------------------------------
 
   defmodule Tag do
+    @moduledoc false
     use Ash.Resource,
       domain: AshFormBuilder.Test.Resources.Blog,
       data_layer: Ash.DataLayer.Ets
@@ -30,6 +31,7 @@ defmodule AshFormBuilder.Test.Resources do
   # ---------------------------------------------------------------------------
 
   defmodule Post do
+    @moduledoc false
     use Ash.Resource,
       domain: AshFormBuilder.Test.Resources.Blog,
       data_layer: Ash.DataLayer.Ets,
@@ -110,6 +112,7 @@ defmodule AshFormBuilder.Test.Resources do
   # ---------------------------------------------------------------------------
 
   defmodule Article do
+    @moduledoc false
     use Ash.Resource,
       domain: AshFormBuilder.Test.Resources.Blog,
       data_layer: Ash.DataLayer.Ets,
@@ -152,6 +155,7 @@ defmodule AshFormBuilder.Test.Resources do
   # ---------------------------------------------------------------------------
 
   defmodule Review do
+    @moduledoc false
     use Ash.Resource,
       domain: AshFormBuilder.Test.Resources.Blog,
       data_layer: Ash.DataLayer.Ets,
@@ -194,6 +198,7 @@ defmodule AshFormBuilder.Test.Resources do
   # ---------------------------------------------------------------------------
 
   defmodule Category do
+    @moduledoc false
     use Ash.Resource,
       domain: AshFormBuilder.Test.Resources.Blog,
       data_layer: Ash.DataLayer.Ets
@@ -218,6 +223,7 @@ defmodule AshFormBuilder.Test.Resources do
   # ---------------------------------------------------------------------------
 
   defmodule BlogPostCategory do
+    @moduledoc false
     use Ash.Resource,
       domain: AshFormBuilder.Test.Resources.Blog,
       data_layer: Ash.DataLayer.Ets
@@ -247,6 +253,7 @@ defmodule AshFormBuilder.Test.Resources do
   # ---------------------------------------------------------------------------
 
   defmodule BlogPost do
+    @moduledoc false
     use Ash.Resource,
       domain: AshFormBuilder.Test.Resources.Blog,
       data_layer: Ash.DataLayer.Ets,
@@ -324,6 +331,7 @@ defmodule AshFormBuilder.Test.Resources do
   # ---------------------------------------------------------------------------
 
   defmodule Blog do
+    @moduledoc false
     use Ash.Domain
 
     resources do

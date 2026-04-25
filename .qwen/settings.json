@@ -23,7 +23,8 @@
       "Bash(file.write!)",
       "Bash(io.puts)",
       "Bash(eof)",
-      "Bash(elixir *)"
+      "Bash(elixir *)",
+      "Bash(xargs *)"
     ]
   },
   "$version": 3

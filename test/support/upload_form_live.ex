@@ -41,10 +41,10 @@ defmodule AshFormBuilder.Test.UploadFormLive do
 
     # Add avatar argument if present
     submit_params =
-      if avatar_value not in [nil, "", []] do
-        Map.put(submit_params, "avatar", avatar_value)
-      else
+      if avatar_value in [nil, "", []] do
         submit_params
+      else
+        Map.put(submit_params, "avatar", avatar_value)
       end
 
     # Submit the form
@@ -63,6 +63,7 @@ defmodule AshFormBuilder.Test.UploadFormLive do
           |> assign(:last_submission, result)
 
         {:noreply, socket}
+
       {:error, form} ->
         {:noreply, assign(socket, form: to_form(form))}
     end

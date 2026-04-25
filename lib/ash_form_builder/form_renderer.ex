@@ -100,7 +100,7 @@ defmodule AshFormBuilder.FormRenderer do
         <div class="nested-item">
           <%= for f <- @nested.fields do %>
             <%= @theme.render_field(
-              %{form: nested_f, field: f, target: @target},
+              %{form: nested_f, field: f, target: @target, uploads: %{}},
               @theme_opts
             ) %>
           <% end %>
@@ -128,17 +128,6 @@ defmodule AshFormBuilder.FormRenderer do
       >
         {@nested.add_label}
       </button>
-
-      <div :if={@nested.cardinality == :one} class="nested-single">
-        <.inputs_for :let={nested_f} field={@form[@nested.name]}>
-          <%= for f <- @nested.fields do %>
-            <%= @theme.render_field(
-              %{form: nested_f, field: f, target: @target},
-              @theme_opts
-            ) %>
-          <% end %>
-        </.inputs_for>
-      </div>
     </fieldset>
     """
   end

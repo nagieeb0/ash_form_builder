@@ -28,7 +28,8 @@ defmodule AshFormBuilder.FormComponentLiveTest do
 
       assert html =~ "Clinic name"
       assert html =~ "Specialties"
-      assert html =~ "mb-4"  # Tailwind margin class from our Default theme
+      # Tailwind margin class from our Default theme
+      assert html =~ "mb-4"
     end
 
     test "form has correct id and submit button", %{conn: conn} do
@@ -61,12 +62,12 @@ defmodule AshFormBuilder.FormComponentLiveTest do
         |> render_submit()
 
       # Ash validation errors can appear in different formats
-      assert html =~ "can't be blank" or 
-             html =~ "is invalid" or 
-             html =~ "required" or 
-             html =~ "error" or
-             html =~ "text-red" or
-             html =~ "alert"
+      assert html =~ "can't be blank" or
+               html =~ "is invalid" or
+               html =~ "required" or
+               html =~ "error" or
+               html =~ "text-red" or
+               html =~ "alert"
     end
 
     test "successful submit notifies the parent LiveView", %{conn: conn} do
