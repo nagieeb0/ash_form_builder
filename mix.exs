@@ -2,7 +2,7 @@ defmodule AshFormBuilder.MixProject do
   use Mix.Project
 
   @source_url "https://github.com/nagieeb0/ash_form_builder"
-  @version "0.2.3"
+  @version "0.3.0"
 
   def project do
     [
@@ -21,7 +21,11 @@ defmodule AshFormBuilder.MixProject do
       # Project Information
       name: "AshFormBuilder",
       source_url: @source_url,
-      homepage_url: "https://github.com/nagieeb0/ash_form_builder"
+      homepage_url: "https://github.com/nagieeb0/ash_form_builder",
+      dialyzer: [
+        plt_add_apps: [:mix],
+        ignore_warnings: ".dialyzer_ignore.exs"
+      ]
     ]
   end
 
@@ -43,6 +47,8 @@ defmodule AshFormBuilder.MixProject do
 
   defp deps do
     [
+      {:cinder, "~> 0.12"},
+      {:igniter, "~> 0.6"},
       # Core Dependencies
       {:spark, "~> 2.0"},
       {:ash, "~> 3.0"},
@@ -57,6 +63,8 @@ defmodule AshFormBuilder.MixProject do
 
       # Dev Dependencies
       {:ex_doc, "~> 0.31", only: :dev, runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false, optional: true},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ecto_sql, "~> 3.10", only: :test},
       {:postgrex, ">= 0.0.0", only: :test},
       {:ash_postgres, "~> 2.0", only: :test},
@@ -82,7 +90,11 @@ defmodule AshFormBuilder.MixProject do
       ],
       groups_for_extras: [
         "": ["README.md", "CHANGELOG.md", "FILE_UPLOAD_GUIDE.md", "STORAGE_CONFIGURATION.md"],
-        Guides: ["guides/theme_customization_guide.md", "guides/todo_app_integration.livemd", "guides/relationships_guide.livemd"]
+        Guides: [
+          "guides/theme_customization_guide.md",
+          "guides/todo_app_integration.livemd",
+          "guides/relationships_guide.livemd"
+        ]
       ],
       groups_for_modules: [
         "Core API": [

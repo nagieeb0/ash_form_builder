@@ -3,6 +3,8 @@ defmodule AshFormBuilderTest do
 
   alias AshFormBuilder.{Field, Info, TypeInference}
   alias AshFormBuilder.Test.Resources.{Article, Post, Review, Tag}
+  alias AshFormBuilder.Test.Resources.Post.Form, as: PostForm
+  alias AshFormBuilder.Themes.Default, as: DefaultTheme
 
   # Aliases for convenience
   @post Post
@@ -121,28 +123,28 @@ defmodule AshFormBuilderTest do
     end
 
     test "resource/0 returns the resource module" do
-      assert AshFormBuilder.Test.Resources.Post.Form.resource() ==
+      assert PostForm.resource() ==
                AshFormBuilder.Test.Resources.Post
     end
 
     test "action/0 returns the declared action" do
-      assert AshFormBuilder.Test.Resources.Post.Form.action() == :create
+      assert PostForm.action() == :create
     end
 
     test "nested_config/0 has correct AshPhoenix structure" do
-      config = AshFormBuilder.Test.Resources.Post.Form.nested_config()
+      config = PostForm.nested_config()
       assert [{:tags, opts}] = config
       assert opts[:type] == :list
       assert opts[:resource] == Tag
     end
 
     test "for_create/1 returns a Phoenix.HTML.Form" do
-      form = AshFormBuilder.Test.Resources.Post.Form.for_create(authorize?: false)
+      form = PostForm.for_create(authorize?: false)
       assert %Phoenix.HTML.Form{} = form
     end
 
     test "for_create/1 source is an AshPhoenix.Form" do
-      form = AshFormBuilder.Test.Resources.Post.Form.for_create(authorize?: false)
+      form = PostForm.for_create(authorize?: false)
       assert %AshPhoenix.Form{} = form.source
     end
   end
@@ -347,23 +349,23 @@ defmodule AshFormBuilderTest do
     end
 
     test "Default theme render_field/2 returns a Rendered struct for text field" do
-      form = AshFormBuilder.Test.Resources.Post.Form.for_create(authorize?: false)
-      field = %AshFormBuilder.Field{name: :title, label: "Title", type: :text_input}
-      result = AshFormBuilder.Themes.Default.render_field(%{form: form, field: field}, [])
+      form = PostForm.for_create(authorize?: false)
+      field = %Field{name: :title, label: "Title", type: :text_input}
+      result = DefaultTheme.render_field(%{form: form, field: field}, [])
       assert %Phoenix.LiveView.Rendered{} = result
     end
 
     test "Default theme render_field/2 returns a Rendered struct for checkbox" do
-      form = AshFormBuilder.Test.Resources.Post.Form.for_create(authorize?: false)
-      field = %AshFormBuilder.Field{name: :published, label: "Published", type: :checkbox}
-      result = AshFormBuilder.Themes.Default.render_field(%{form: form, field: field}, [])
+      form = PostForm.for_create(authorize?: false)
+      field = %Field{name: :published, label: "Published", type: :checkbox}
+      result = DefaultTheme.render_field(%{form: form, field: field}, [])
       assert %Phoenix.LiveView.Rendered{} = result
     end
 
     test "Default theme render_field/2 returns a Rendered struct for hidden field" do
-      form = AshFormBuilder.Test.Resources.Post.Form.for_create(authorize?: false)
-      field = %AshFormBuilder.Field{name: :id, type: :hidden}
-      result = AshFormBuilder.Themes.Default.render_field(%{form: form, field: field}, [])
+      form = PostForm.for_create(authorize?: false)
+      field = %Field{name: :id, type: :hidden}
+      result = DefaultTheme.render_field(%{form: form, field: field}, [])
       assert %Phoenix.LiveView.Rendered{} = result
     end
 
@@ -382,7 +384,7 @@ defmodule AshFormBuilderTest do
 
   describe "FormComponent.handle_event/3" do
     setup do
-      form = AshFormBuilder.Test.Resources.Post.Form.for_create(authorize?: false)
+      form = PostForm.for_create(authorize?: false)
 
       socket = %Phoenix.LiveView.Socket{
         assigns: %{
@@ -440,7 +442,7 @@ defmodule AshFormBuilderTest do
 
     test "submit event with valid params calls on_submit callback" do
       test_pid = self()
-      form = AshFormBuilder.Test.Resources.Post.Form.for_create(authorize?: false)
+      form = PostForm.for_create(authorize?: false)
 
       socket = %Phoenix.LiveView.Socket{
         assigns: %{
@@ -474,7 +476,7 @@ defmodule AshFormBuilderTest do
     end
 
     test "submit event with invalid params returns form with errors" do
-      form = AshFormBuilder.Test.Resources.Post.Form.for_create(authorize?: false)
+      form = PostForm.for_create(authorize?: false)
 
       socket = %Phoenix.LiveView.Socket{
         assigns: %{

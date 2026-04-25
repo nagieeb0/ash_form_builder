@@ -138,7 +138,10 @@ defmodule AshFormBuilder.UploadTest do
       # Submit with a file path (simulating an uploaded file)
       # AshPhoenix.Form passes arguments at the top level of params
       view
-      |> form("#user_profile-form", %{"form" => %{"name" => "Jane Doe"}, "avatar" => "uploads/test.jpg"})
+      |> form("#user_profile-form", %{
+        "form" => %{"name" => "Jane Doe"},
+        "avatar" => "uploads/test.jpg"
+      })
       |> render_submit()
 
       # Wait for the result to be rendered

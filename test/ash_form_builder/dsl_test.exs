@@ -2,8 +2,8 @@ defmodule AshFormBuilder.DslTest do
   use ExUnit.Case, async: true
 
   alias AshFormBuilder.Field
-  alias AshFormBuilder.NestedForm
   alias AshFormBuilder.Info
+  alias AshFormBuilder.NestedForm
   alias AshFormBuilder.Test.DslSampleResource
 
   setup do

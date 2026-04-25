@@ -384,9 +384,15 @@ defmodule AshFormBuilder.Themes.Default do
 
   defp error_messages(form, field_name) do
     cond do
-      not is_map(form) -> []
-      not Map.has_key?(form, field_name) -> []
-      is_nil(form[field_name]) -> []
+      not is_map(form) ->
+        []
+
+      not Map.has_key?(form, field_name) ->
+        []
+
+      is_nil(form[field_name]) ->
+        []
+
       true ->
         field = form[field_name]
         if is_map(field), do: Keyword.get_values(field.errors, :message), else: []
@@ -394,7 +400,7 @@ defmodule AshFormBuilder.Themes.Default do
   end
 
   defp has_errors?(form, field_name) do
-    length(error_messages(form, field_name)) > 0
+    error_messages(form, field_name) != []
   end
 
   defp html_input_type(:text_input), do: "text"

@@ -46,7 +46,7 @@ defmodule AshFormBuilder.Transformers.GenerateFormModule do
 
   use Spark.Dsl.Transformer
 
-  alias Spark.Dsl.Transformer
+  alias Spark.Dsl.{Extension, Transformer}
 
   @impl Spark.Dsl.Transformer
   def before?(_), do: false
@@ -58,17 +58,17 @@ defmodule AshFormBuilder.Transformers.GenerateFormModule do
   @impl Spark.Dsl.Transformer
   def transform(dsl_state) do
     resource = Transformer.get_persisted(dsl_state, :module)
-    action = Spark.Dsl.Extension.get_opt(dsl_state, [:form], :action)
+    action = Extension.get_opt(dsl_state, [:form], :action)
 
     if action do
       component_module =
-        Spark.Dsl.Extension.get_opt(dsl_state, [:form], :module) ||
+        Extension.get_opt(dsl_state, [:form], :module) ||
           Module.concat([resource, Form])
 
       nested_map =
         Transformer.get_persisted(dsl_state, :ash_form_builder_nested_resources) || %{}
 
-      entities = Spark.Dsl.Extension.get_entities(dsl_state, [:form])
+      entities = Extension.get_entities(dsl_state, [:form])
 
       # Build nested config for AshPhoenix.Form
       nested_config = build_nested_config(entities, nested_map)

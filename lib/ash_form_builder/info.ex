@@ -21,9 +21,11 @@ defmodule AshFormBuilder.Info do
     extension: AshFormBuilder,
     sections: [:form]
 
+  alias Spark.Dsl.Extension
+
   @doc "All DSL entities in declaration order (mix of `Field` and `NestedForm` structs)."
   def form_entities(resource_or_dsl) do
-    Spark.Dsl.Extension.get_entities(resource_or_dsl, [:form])
+    Extension.get_entities(resource_or_dsl, [:form])
   end
 
   @doc "Only the top-level `Field` structs declared in the DSL."
@@ -42,32 +44,33 @@ defmodule AshFormBuilder.Info do
 
   @doc "Returns the configured `:action` option, or `nil` if no `form` block."
   def form_action(resource_or_dsl) do
-    Spark.Dsl.Extension.get_opt(resource_or_dsl, [:form], :action)
+    Extension.get_opt(resource_or_dsl, [:form], :action)
   end
 
   @doc "Returns the configured `:submit_label`, defaulting to `\"Submit\"`."
   def form_submit_label(resource_or_dsl) do
-    Spark.Dsl.Extension.get_opt(resource_or_dsl, [:form], :submit_label) || "Submit"
+    Extension.get_opt(resource_or_dsl, [:form], :submit_label) || "Submit"
   end
 
   @doc "Returns the configured `:wrapper_class`, defaulting to `\"space-y-4\"`."
   def form_wrapper_class(resource_or_dsl) do
-    Spark.Dsl.Extension.get_opt(resource_or_dsl, [:form], :wrapper_class) || "space-y-4"
+    Extension.get_opt(resource_or_dsl, [:form], :wrapper_class) || "space-y-4"
   end
 
   @doc "Returns the configured `:form_id`, or `nil`."
   def form_html_id(resource_or_dsl) do
-    Spark.Dsl.Extension.get_opt(resource_or_dsl, [:form], :form_id)
+    Extension.get_opt(resource_or_dsl, [:form], :form_id)
   end
 
   @doc "Returns the override `:module` option, or `nil` (generator uses `Resource.Form` by default)."
   def form_module_override(resource_or_dsl) do
-    Spark.Dsl.Extension.get_opt(resource_or_dsl, [:form], :module)
+    Extension.get_opt(resource_or_dsl, [:form], :module)
   end
 
   @doc "True when the resource has a `form` block with an `action` set."
+  @dialyzer {:nowarn_function, has_form?: 1}
   def has_form?(resource_or_dsl) do
-    form_action(resource_or_dsl) != nil
+    not is_nil(form_action(resource_or_dsl))
   end
 
   # ---------------------------------------------------------------------------
@@ -85,6 +88,7 @@ defmodule AshFormBuilder.Info do
 
   Only call this on a compiled resource module, not on a `dsl_state` map.
   """
+  @dialyzer {:nowarn_function, effective_fields: 1}
   @spec effective_fields(module()) :: [AshFormBuilder.Field.t()]
   def effective_fields(resource) do
     action = form_action(resource)
@@ -137,7 +141,7 @@ defmodule AshFormBuilder.Info do
   """
   def build_nested_forms_config(resource_or_dsl) do
     nested_resource_map =
-      Spark.Dsl.Extension.get_persisted(resource_or_dsl, :ash_form_builder_nested_resources) ||
+      Extension.get_persisted(resource_or_dsl, :ash_form_builder_nested_resources) ||
         %{}
 
     resource_or_dsl

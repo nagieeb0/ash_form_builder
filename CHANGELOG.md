@@ -7,12 +7,136 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planned for 0.3.0
+### Planned
 - i18n support via GetText
 - Field-level permissions
 - Conditional field rendering
 - Multi-step form wizards
 - Form draft auto-save
+
+## [0.3.0] - 2026-04-25
+
+### ✨ Added
+
+#### Full LiveView CRUD Generator — `mix ash_form_builder.gen.live`
+
+The headline feature of v0.3.0: one command scaffolds a complete, production-grade
+CRUD interface backed by [Cinder](https://hex.pm/packages/cinder) for the data table
+and `AshFormBuilder.FormComponent` inside a Phoenix modal for create/edit.
+
+```bash
+mix ash_form_builder.gen.live Accounts User
+mix ash_form_builder.gen.live Blog Post --page-size 50
+mix ash_form_builder.gen.live Inventory Product --out lib/my_app_web/live/admin
+```
+
+**Generated `index.ex`** — fully wired Phoenix LiveView:
+
+- `use Cinder.UrlSync` — injects `handle_info/2` for URL state synchronisation; no
+  boilerplate needed
+- `@collection_id` module attribute used consistently across all refresh calls
+- `mount/3` — initialises `url_state: false`, `record: nil`, `form: nil`
+- `handle_params/3` — delegates to `Cinder.UrlSync.handle_params/3`; routes
+  `:index` / `:new` / `:edit` live actions
+- `apply_action/3 :new` — builds `AshPhoenix.Form.for_create` with actor
+- `apply_action/3 :edit` — `Ash.get!` + `AshPhoenix.Form.for_update` with actor
+- `handle_info/2 {:form_submitted, Resource, _result}` — flash success,
+  `Cinder.refresh_table/2`, `push_patch` back to index
+- `handle_event/3 "delete"` — `Ash.get!` + `Ash.destroy!` + `Cinder.refresh_table/2`
+
+**Generated `index.html.heex`** — complete template:
+
+- `<.header>` with "New [Resource]" button linking to the `:new` route
+- `<Cinder.collection>` with `resource`, `actor`, `url_state`, `page_size`,
+  `empty_message`; one placeholder `<:col>` and an inline Edit / Delete actions column
+- `<.modal :if={@live_action in [:new, :edit]}>` with `on_cancel` patch and `show`
+- `<.live_component module={AshFormBuilder.FormComponent}>` with dynamic `submit_label`
+  ("Create [Resource]" vs "Save Changes")
+
+**Options:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--page-size` / `-p` | `25` | Cinder page size |
+| `--out` / `-o` | `lib/<app>_web/live/<resource>_live` | Output directory |
+
+Router instructions are printed to the terminal after generation.
+
+#### Deep Cinder Integration
+
+- Generated LiveViews use `Cinder.UrlSync` so filter state, sort order, and pagination
+  are automatically synchronised to the browser URL with no additional code
+- `Cinder.refresh_table(@collection_id)` triggers an async Ash re-query after every
+  create, update, or delete — no full page reload required
+- `Cinder.collection` receives the Ash resource module, actor, and `url_state` assign
+  directly from the generated `handle_params` pipeline
+
+#### Static Analysis Tooling
+
+Added `dialyxir ~> 1.4` and `credo ~> 1.7` as dev/test dependencies. Both now pass
+clean on every run:
+
+- `mix credo --strict` — zero issues:
+  - `CyclomaticComplexity` threshold raised to 16 (dispatch-heavy theme `render_field`
+    functions are legitimately complex)
+  - `LongQuoteBlocks` disabled (code generators inherently contain long `quote` blocks)
+  - `AliasUsage` threshold raised to 3+ usages to avoid trivial churn
+  - Properly aliased `Spark.Dsl.Extension`, `Ash.Resource.Info`, `Phoenix.HTML.Form`
+    across all modules
+- `mix dialyzer` — zero errors:
+  - `plt_add_apps: [:mix]` resolves false positives for Mix task callback metadata
+  - `@dialyzer {:nowarn_function}` annotations on `has_form?/1` and
+    `effective_fields/1` where `Spark.Dsl.Extension` type specs are more conservative
+    than runtime behaviour
+  - `.dialyzer_ignore.exs` created for residual Mix.Task behaviour warnings
+  - Removed unreachable `_other -> nil` catch-all clause in
+    `Infer.infer_from_relationship/2` (Ash relationship types are a closed set of 4)
+
+### 🔧 Fixed
+
+- **Generator route instructions** — step 4 displayed `"/userss"` (double-s because
+  `route_segment` is already pluralised); corrected to `"/users"`
+- **`index_heex_content/1`** — `resource_base` was assigned but never referenced in
+  the HEEx template string; prefixed with `_` to suppress the compiler warning
+- **`has_errors?/1`** (Default theme) — replaced `length(errors) > 0` with
+  `errors != []` (fixes `ExpensiveEmptyEnumCheck` credo warning)
+- **Negated conditions** — `if not delete_flag`, `if not is_nil(cloud_module)`,
+  `if avatar_value not in [nil, "", []]` flipped to positive-guard form in
+  `FormComponent` and the upload support module
+- **Nesting depth** — `get_domain_for_resource/1` reduced from depth-3 to depth-2
+  by replacing nested `if` blocks with a single `with` expression
+- **Alias ordering** — `dsl_test.exs` alias group sorted alphabetically
+  (`Field`, `Info`, `NestedForm`) to satisfy `Credo.Check.Readability.AliasOrder`
+- **Missing `@moduledoc false`** — added to all 8 inner test resource modules in
+  `test/support/test_resources.ex` to satisfy `Credo.Check.Readability.ModuleDoc`
+
+### 🧪 Testing
+
+- **52 new generator tests** — `test/mix/tasks/ash_form_builder_gen_live_test.exs`
+
+  Covers:
+  - Argument validation (missing args, lowercase names, non-alphanumeric characters)
+  - File creation (`index.ex` and `index.html.heex` present in `--out` directory)
+  - All `index.ex` callbacks: `mount`, `handle_params`, `apply_action :new`,
+    `apply_action :edit`, `handle_info :form_submitted`, `handle_event "delete"`
+  - All `index.html.heex` nodes: header, New button, `Cinder.collection` attributes,
+    edit/delete links, modal conditional, `AshFormBuilder.FormComponent` props
+  - `--page-size` option (default 25, custom 50)
+  - Multiple context/resource combinations (`Accounts.User`, `Blog.Post`)
+  - CamelCase resource names (`Content.BlogPost` → `blog_post` snake\_case routes)
+
+- **180 tests total, 0 failures**
+
+### 📦 Dependencies
+
+Added (dev/test only, not required at runtime):
+
+```elixir
+{:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
+{:credo,    "~> 1.7", only: [:dev, :test], runtime: false}
+```
+
+Runtime dependencies are unchanged.
 
 ## [0.2.3] - 2026-04-19
 

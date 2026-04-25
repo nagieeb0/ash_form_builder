@@ -74,6 +74,7 @@ defmodule AshFormBuilder.Infer do
   This enables seamless UI rendering with searchable multi-select for related records.
   """
 
+  alias Ash.Resource.Info
   alias AshFormBuilder.Field
 
   # ───────────────────────────────────────────────────────────────────────────
@@ -192,7 +193,7 @@ defmodule AshFormBuilder.Infer do
   """
   @spec infer_fields(module(), atom(), keyword()) :: [Field.t()]
   def infer_fields(resource, action_name, opts \\ []) do
-    action = Ash.Resource.Info.action(resource, action_name)
+    action = Info.action(resource, action_name)
 
     if is_nil(action) do
       []
@@ -279,10 +280,10 @@ defmodule AshFormBuilder.Infer do
   """
   @spec detect_field_type(module(), atom()) :: :attribute | {:relationship, struct()} | :ignore
   def detect_field_type(resource, field_name) do
-    case Ash.Resource.Info.relationship(resource, field_name) do
+    case Info.relationship(resource, field_name) do
       nil ->
         # Check if it's an attribute
-        if Ash.Resource.Info.attribute(resource, field_name) do
+        if Info.attribute(resource, field_name) do
           :attribute
         else
           :ignore
@@ -306,7 +307,7 @@ defmodule AshFormBuilder.Infer do
   """
   @spec detect_required_preloads([Field.t()], module(), atom()) :: [atom()]
   def detect_required_preloads(fields, resource, action_name) do
-    action = Ash.Resource.Info.action(resource, action_name)
+    action = Info.action(resource, action_name)
 
     # Only preloads needed for update/destroy actions
     if is_nil(action) or action.type not in [:update, :destroy] do
@@ -405,7 +406,7 @@ defmodule AshFormBuilder.Infer do
   end
 
   defp infer_from_attribute(resource, field_name) do
-    attr = Ash.Resource.Info.attribute(resource, field_name)
+    attr = Info.attribute(resource, field_name)
 
     if is_nil(attr) do
       nil
@@ -449,17 +450,13 @@ defmodule AshFormBuilder.Infer do
         build_belongs_to_field(rel, opts)
 
       :has_one ->
-        # has_one typically uses nested form or separate form
-        nil
-
-      _other ->
         nil
     end
   end
 
   defp infer_manage_relationship(rel_name, resource, opts) do
     # Get the relationship from the resource
-    case Ash.Resource.Info.relationship(resource, rel_name) do
+    case Info.relationship(resource, rel_name) do
       nil ->
         nil
 
@@ -519,7 +516,7 @@ defmodule AshFormBuilder.Infer do
   end
 
   defp field_exists?(resource, field_name) do
-    not is_nil(Ash.Resource.Info.attribute(resource, field_name))
+    not is_nil(Info.attribute(resource, field_name))
   end
 
   defp build_belongs_to_field(rel, opts) do
@@ -611,7 +608,7 @@ defmodule AshFormBuilder.Infer do
   end
 
   defp build_nested_config(field, resource) do
-    rel = Ash.Resource.Info.relationship(resource, field.relationship)
+    rel = Info.relationship(resource, field.relationship)
 
     if rel do
       cardinality = if rel.cardinality == :many, do: :list, else: :single
