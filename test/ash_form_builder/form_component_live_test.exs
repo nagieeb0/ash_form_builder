@@ -28,14 +28,15 @@ defmodule AshFormBuilder.FormComponentLiveTest do
 
       assert html =~ "Clinic name"
       assert html =~ "Specialties"
-      # Tailwind margin class from our Default theme
-      assert html =~ "mb-4"
+
+      # The Default theme renders an outer field wrapper with `ash-form-builder` and field margin classes.
+      assert html =~ "ash-form-builder"
     end
 
     test "form has correct id and submit button", %{conn: conn} do
       {:ok, _view, html} = live_isolated(conn, AshFormBuilder.Test.ClinicFormLive)
 
-      assert html =~ "id=\"clinic-form\""
+      assert html =~ "id=\"clinic-create-form\""
       assert html =~ "type=\"submit\""
       assert html =~ "Create clinic"
     end
@@ -43,14 +44,14 @@ defmodule AshFormBuilder.FormComponentLiveTest do
     test "add_form and remove_form manage nested subtask forms", %{conn: conn} do
       {:ok, view, _html} = live_isolated(conn, AshFormBuilder.Test.ClinicFormLive)
 
-      assert view |> element(".btn-add-nested") |> has_element?()
+      assert view |> element("button[phx-click=add_form]") |> has_element?()
 
-      view |> element(".btn-add-nested") |> render_click()
+      view |> element("button[phx-click=add_form]") |> render_click()
       html = render(view)
-      assert html =~ "nested-form" or html =~ "Subtask"
+      assert html =~ "Subtask" or html =~ "nested" or html =~ "subtask"
 
-      assert view |> element(".btn-remove-nested") |> has_element?()
-      view |> element(".btn-remove-nested") |> render_click()
+      assert view |> element("button[phx-click=remove_form]") |> has_element?()
+      view |> element("button[phx-click=remove_form]") |> render_click()
     end
 
     test "validation errors surface on required fields", %{conn: conn} do
@@ -58,7 +59,7 @@ defmodule AshFormBuilder.FormComponentLiveTest do
 
       html =
         view
-        |> form("#clinic-form", %{"form" => %{"name" => ""}})
+        |> form("#clinic-create-form", %{"form" => %{"name" => ""}})
         |> render_submit()
 
       # Ash validation errors can appear in different formats
@@ -75,7 +76,9 @@ defmodule AshFormBuilder.FormComponentLiveTest do
 
       _html =
         view
-        |> form("#clinic-form", %{"form" => %{"name" => "Downtown Clinic", "phone" => "555-0100"}})
+        |> form("#clinic-create-form", %{
+          "form" => %{"name" => "Downtown Clinic", "phone" => "555-0100"}
+        })
         |> render_submit()
 
       assert render(view) =~ "last-submission" or render(view) =~ "Clinic"

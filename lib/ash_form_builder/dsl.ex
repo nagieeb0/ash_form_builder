@@ -27,7 +27,9 @@ defmodule AshFormBuilder.Dsl do
              :textarea,
              :select,
              :multiselect_combobox,
+             :checkbox_group,
              :checkbox,
+             :toggle,
              :number,
              :email,
              :password,
@@ -42,9 +44,15 @@ defmodule AshFormBuilder.Dsl do
         doc: """
         The HTML input type to render.
 
-        Special types:
-        * `:multiselect_combobox` - For many_to_many relationships. Uses a searchable
-          multi-select combobox (MishkaChelekom). Supports `opts` for customization.
+        Boolean / many_to_many types:
+        * `:toggle` (default for boolean attributes) - Animated switch.
+        * `:checkbox` - Standard square checkbox (use this to override the toggle default).
+        * `:checkbox_group` (default for many_to_many) - Vertical list of checkboxes
+          backed by the relationship's options.
+        * `:multiselect_combobox` - Searchable multi-select for many_to_many. Set
+          this explicitly when you need search/creatable behavior.
+
+        Other special types:
         * `:file_upload` - Phoenix LiveView file upload. Configure via `opts`:
           `[upload: [cloud: MyApp.Cloud, max_entries: 1, max_file_size: 10_000_000, accept: ~w(.jpg .png)]]`
         """
@@ -78,6 +86,71 @@ defmodule AshFormBuilder.Dsl do
         type: :string,
         doc: "Helper text rendered below the input."
       ],
+      description: [
+        type: :string,
+        doc:
+          "Longer descriptive text rendered above the input (rendered between the label and the field by themes that support it)."
+      ],
+      autocomplete: [
+        type: :string,
+        doc:
+          "HTML `autocomplete` attribute (`\"email\"`, `\"name\"`, `\"new-password\"`, `\"off\"`, etc.)."
+      ],
+      autofocus: [
+        type: :boolean,
+        default: false,
+        doc: "If true, the input renders with the `autofocus` attribute."
+      ],
+      readonly: [
+        type: :boolean,
+        default: false,
+        doc: "If true, the input renders with the `readonly` attribute."
+      ],
+      disabled: [
+        type: :boolean,
+        default: false,
+        doc: "If true, the input renders with the `disabled` attribute."
+      ],
+      min: [
+        type: {:or, [:integer, :float, :string]},
+        doc:
+          "HTML `min` attribute. Useful for `:number`, `:date`, and `:datetime` fields. Strings are passed through verbatim."
+      ],
+      max: [
+        type: {:or, [:integer, :float, :string]},
+        doc: "HTML `max` attribute (mirrors `min`)."
+      ],
+      step: [
+        type: {:or, [:integer, :float, :string]},
+        doc: "HTML `step` attribute. For `:number` fields use e.g. `0.01` to allow two decimals."
+      ],
+      pattern: [
+        type: :string,
+        doc: "HTML `pattern` regex constraint applied to text-like inputs."
+      ],
+      rows: [
+        type: :pos_integer,
+        doc: "Number of visible rows for `:textarea` fields (default `4`)."
+      ],
+      maxlength: [
+        type: :pos_integer,
+        doc: "HTML `maxlength` attribute for text-like inputs."
+      ],
+      inputmode: [
+        type: :string,
+        doc:
+          "Hints the on-screen keyboard for mobile devices (`\"numeric\"`, `\"decimal\"`, `\"tel\"`, `\"email\"`, …)."
+      ],
+      prefix: [
+        type: :string,
+        doc:
+          "Short text or character rendered immediately before the input (e.g. `\"$\"`, `\"https://\"`). Themes that support it will pin it inside the input's left affix."
+      ],
+      suffix: [
+        type: :string,
+        doc:
+          "Short text or character rendered immediately after the input (e.g. `\"kg\"`, `\".com\"`)."
+      ],
       relationship: [
         type: :atom,
         doc: "For relationship fields: the relationship name (auto-inferred for many_to_many)."
@@ -90,13 +163,48 @@ defmodule AshFormBuilder.Dsl do
         type: :atom,
         doc: "For relationship fields: the related resource module. Auto-inferred."
       ],
+      accept: [
+        type: {:or, [{:literal, :any}, {:list, :string}, :string]},
+        doc: """
+        File-upload accept filter. Pass `:any` (default) to accept any file,
+        a list of extensions / mime types like `~w(.jpg .png image/webp)`, or
+        a shorthand atom (`:images`, `:documents`, `:audio`, `:video`).
+        Only meaningful for `type: :file_upload`.
+        """
+      ],
+      max_files: [
+        type: :pos_integer,
+        doc:
+          "Max number of files allowed for `type: :file_upload` (Phoenix `max_entries`). Default 1."
+      ],
+      max_file_size: [
+        type: {:or, [:pos_integer, {:tuple, [:pos_integer, :atom]}]},
+        doc: """
+        Max upload size for `type: :file_upload`. Either an integer (bytes) or
+        a `{n, unit}` tuple where unit is `:kb`, `:mb`, or `:gb`. Default 8 MB.
+        """
+      ],
+      cloud: [
+        type: :atom,
+        doc:
+          "Module implementing the `Buckets.Cloud` behaviour to use for storing uploads. Optional — defaults to in-process consumption."
+      ],
+      bucket: [
+        type: :string,
+        doc: "Bucket / prefix name passed to the cloud module. Optional."
+      ],
+      auto_upload: [
+        type: :boolean,
+        doc: "If true, mirrors Phoenix LiveView's `auto_upload: true` (defaults to false)."
+      ],
       opts: [
         type: :keyword_list,
         default: [],
         doc: """
-        Custom options for UI components.
+        Escape hatch for component-specific options that don't have a first-class
+        DSL field yet.
 
-        For `:multiselect_combobox`, supports:
+        For `:multiselect_combobox`:
         * `search_event` - Event name for searching (e.g., "search_doctors")
         * `search_param` - Query param name for search (default: "query")
         * `debounce` - Search debounce in ms (default: 300)
@@ -107,13 +215,9 @@ defmodule AshFormBuilder.Dsl do
         * `create_action` - Action to use for creating new items (default: :create)
         * `create_label` - Label for the create button (default: "Create \"{value}\"")
 
-        For `:file_upload`, supports:
-        * `upload` - Keyword list of upload configuration:
-          * `cloud` - Module implementing `Buckets.Cloud` behaviour for storage
-          * `max_entries` - Maximum number of files allowed (default: 1)
-          * `max_file_size` - Maximum file size in bytes (default: 8_000_000)
-          * `accept` - List of accepted file extensions or MIME types (default: :any)
-          * `bucket_name` - Name of the bucket to store files in (optional)
+        For `:file_upload`, the first-class fields `accept`, `max_files`,
+        `max_file_size`, `cloud`, `bucket`, `auto_upload` should be preferred.
+        Legacy nested form `opts: [upload: [...]]` is still honoured.
         """
       ]
     ]
@@ -170,18 +274,37 @@ defmodule AshFormBuilder.Dsl do
       class: [
         type: :string,
         doc: "Extra CSS class(es) applied to the nested `<fieldset>`."
+      ],
+      max_count: [
+        type: :pos_integer,
+        doc: """
+        Optional cap on the number of child entries the user can add. The Add
+        button is disabled (and the count label flips to "X of N") once this
+        many entries are present.
+
+        Tip: derive this from your Ash action argument constraints, e.g.
+        `argument :subtasks, {:array, :map}, constraints: [max_length: 5]`,
+        and pass `max_count 5` here so the UI matches the changeset rule.
+        """
+      ],
+      min_count: [
+        type: :non_neg_integer,
+        default: 0,
+        doc:
+          "Optional minimum number of entries. The Remove button is disabled when at the minimum."
       ]
     ]
   }
 
   # ---------------------------------------------------------------------------
-  # form section — top-level container
+  # form entity — one per Ash action
   # ---------------------------------------------------------------------------
 
-  @form %Spark.Dsl.Section{
+  @form %Spark.Dsl.Entity{
     name: :form,
-    describe: "Declares the auto-generated LiveView form for this Ash resource.",
-    entities: [@field, @nested_form],
+    target: AshFormBuilder.FormConfig,
+    args: [:action],
+    entities: [entities: [@field, @nested_form]],
     schema: [
       action: [
         type: :atom,
@@ -223,7 +346,7 @@ defmodule AshFormBuilder.Dsl do
       ],
       module: [
         type: :atom,
-        doc: "Override the auto-generated helper module name (default: `Resource.Form`)."
+        doc: "Override the auto-generated helper module name (default: derived from action)."
       ],
       form_id: [
         type: :string,
@@ -233,11 +356,82 @@ defmodule AshFormBuilder.Dsl do
         type: :string,
         default: "space-y-4",
         doc: "CSS class applied to the fields wrapper `<div>`."
+      ],
+      theme: [
+        type: :atom,
+        doc: """
+        Theme to use for this form. Accepts a module
+        (`AshFormBuilder.Themes.Shadcn`) or a short atom (`:shadcn`,
+        `:default`, `:glassmorphism`, `:mishka`, or any user-registered
+        atom under `config :ash_form_builder, :themes, ...`).
+
+        Falls back to the `:ash_form_builder, :theme` app env, then to
+        `AshFormBuilder.Themes.Default`.
+        """
+      ],
+      accent: [
+        type:
+          {:one_of,
+           [
+             :blue,
+             :indigo,
+             :violet,
+             :purple,
+             :pink,
+             :rose,
+             :red,
+             :orange,
+             :amber,
+             :yellow,
+             :lime,
+             :green,
+             :emerald,
+             :teal,
+             :cyan,
+             :sky,
+             :slate,
+             :gray,
+             :zinc
+           ]},
+        default: :indigo,
+        doc: "Accent Tailwind color used for focus rings, primary buttons, and selected states."
+      ],
+      transitions: [
+        type: {:one_of, [:none, :subtle, :smooth]},
+        default: :subtle,
+        doc:
+          "Animation intensity. `:none` disables transitions, `:subtle` (default) adds 150ms color/shadow transitions, `:smooth` adds 200ms with translate."
       ]
     ]
   }
 
-  def sections, do: [@form]
+  # ---------------------------------------------------------------------------
+  # forms section — top-level container holding one form per action
+  # ---------------------------------------------------------------------------
+
+  @forms %Spark.Dsl.Section{
+    name: :forms,
+    describe: """
+    Declares one auto-generated LiveView form per Ash action.
+
+        forms do
+          form :create do
+            submit_label "Create Task"
+            field :title do
+              label "Task Title"
+              required true
+            end
+          end
+
+          form :update do
+            submit_label "Update Task"
+          end
+        end
+    """,
+    entities: [@form]
+  }
+
+  def sections, do: [@forms]
 
   def transformers do
     [

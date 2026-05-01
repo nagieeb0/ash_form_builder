@@ -22,10 +22,10 @@ defmodule AshFormBuilder.InferTest do
       assert title.required == true
     end
 
-    test "infers :checkbox for boolean attributes" do
+    test "infers :toggle for boolean attributes (use type :checkbox to override)" do
       fields = Infer.infer_fields(Article, :create)
       published = Enum.find(fields, &(&1.name == :published))
-      assert published.type == :checkbox
+      assert published.type == :toggle
     end
 
     test "infers :number for integer attributes" do
@@ -72,6 +72,29 @@ defmodule AshFormBuilder.InferTest do
     test "returns empty list for create actions" do
       fields = Infer.infer_fields(Article, :create)
       assert Infer.detect_required_preloads(fields, Article, :create) == []
+    end
+  end
+
+  describe "manage_relationship many-to-many" do
+    alias AshFormBuilder.Test.Resources.ManagedPost
+
+    test "infers many-to-many `change manage_relationship(...)` as :checkbox_group" do
+      fields = Infer.infer_fields(ManagedPost, :create)
+      categories = Enum.find(fields, &(&1.name == :categories))
+
+      assert categories, "expected a :categories field inferred from manage_relationship"
+      assert categories.relationship_type == :many_to_many
+      assert categories.type == :checkbox_group
+      assert categories.destination_resource == AshFormBuilder.Test.Resources.Category
+    end
+
+    test "does not produce a duplicate raw-argument field for manage_relationship targets" do
+      # The `:categories` argument is `{:array, :uuid}` — without the
+      # manage_relationship-aware filter the argument inference would
+      # produce a second `:categories` field of type `:text_input`.
+      fields = Infer.infer_fields(ManagedPost, :create)
+      cat_fields = Enum.filter(fields, &(&1.name == :categories))
+      assert length(cat_fields) == 1
     end
   end
 end

@@ -1,47 +1,19 @@
 defmodule AshFormBuilder.Transformers.GenerateFormModule do
   @moduledoc """
-  Generates a `Resource.Form` helper module at compile time for every resource
-  that declares a `form` block.
+  Generates a `Resource.Form` helper module at compile time for every
+  resource that declares one or more forms in `forms do ... end`.
 
-  The generated module provides:
+  The generated module exposes one function per declared action:
 
-    * `for_action/2`   — creates an AshPhoenix.Form for the declared action,
-                         pre-configured with all nested form definitions.
-    * `for_create/1`   — alias when the declared action is a create action.
-    * `for_update/2`   — alias when the declared action is an update action;
-                         first arg is the existing record.
-    * `schema/0`       — returns the inferred form schema as a list of field maps.
-    * `nested_forms/0` — returns the AshPhoenix.Form `:forms` configuration.
+    * `for_<action>/1` for create / read actions
+    * `for_<action>/2` for update / destroy actions (record + opts)
 
-  ## Domain Code Interface Integration
+  Plus introspection helpers:
 
-  When used with Domain Code Interfaces, the form helpers work seamlessly:
-
-      # Domain automatically generates form_to_<action> functions
-      defmodule MyApp.Billing do
-        use Ash.Domain
-
-        resources do
-          resource MyApp.Billing.Clinic do
-            define :form_to_create_clinic, action: :create
-            define :form_to_update_clinic, action: :update
-          end
-        end
-      end
-
-      # In your LiveView:
-      form = MyApp.Billing.Clinic.Form.for_create(actor: socket.assigns.current_user)
-
-  ## Example
-
-      # Create form in a LiveView mount:
-      form = MyApp.Post.Form.for_create(actor: current_user)
-      {:ok, assign(socket, form: form)}
-
-      # Then in the template:
-      <.live_component module={AshFormBuilder.FormComponent}
-        id="create-post"
-        form={@form} />
+    * `actions/0`        — list of declared action atoms
+    * `schema/1`         — schema for the given action
+    * `nested_forms/1`   — AshPhoenix.Form `:forms` config for an action
+    * `required_preloads/1` — relationships to preload when editing
   """
 
   use Spark.Dsl.Transformer
@@ -58,44 +30,57 @@ defmodule AshFormBuilder.Transformers.GenerateFormModule do
   @impl Spark.Dsl.Transformer
   def transform(dsl_state) do
     resource = Transformer.get_persisted(dsl_state, :module)
-    action = Extension.get_opt(dsl_state, [:form], :action)
+    forms = Extension.get_entities(dsl_state, [:forms])
 
-    if action do
-      component_module =
-        Extension.get_opt(dsl_state, [:form], :module) ||
-          Module.concat([resource, Form])
-
+    if forms != [] do
       nested_map =
         Transformer.get_persisted(dsl_state, :ash_form_builder_nested_resources) || %{}
 
-      entities = Extension.get_entities(dsl_state, [:form])
+      module_name = derive_form_module(resource, forms)
 
-      # Build nested config for AshPhoenix.Form
-      nested_config = build_nested_config(entities, nested_map)
+      action_specs =
+        Enum.map(forms, fn form ->
+          entities = form.entities
 
-      # Calculate required preloads for update actions
-      # This ensures many_to_many relationships are loaded when editing
-      required_preloads =
-        AshFormBuilder.Infer.detect_required_preloads(
-          AshFormBuilder.Info.form_fields(dsl_state),
-          resource,
-          action
-        )
+          nested_config = build_nested_config(entities, nested_map)
 
-      # Build schema from DSL entities (used by Domain Code Interfaces)
-      schema = build_schema(entities, nested_map, required_preloads)
+          required_preloads =
+            AshFormBuilder.Infer.detect_required_preloads(
+              Enum.filter(entities, &is_struct(&1, AshFormBuilder.Field)),
+              resource,
+              form.action
+            )
 
-      create_form_module(
-        component_module,
-        resource,
-        action,
-        nested_config,
-        schema,
-        required_preloads
-      )
+          schema = build_schema(entities, nested_map, required_preloads)
+
+          action_type =
+            case Ash.Resource.Info.action(dsl_state, form.action) do
+              %{type: type} -> type
+              _ -> infer_action_type(form.action)
+            end
+
+          %{
+            action: form.action,
+            type: action_type,
+            nested_config: nested_config,
+            required_preloads: required_preloads,
+            schema: schema
+          }
+        end)
+
+      create_form_module(module_name, resource, action_specs)
     end
 
     {:ok, dsl_state}
+  end
+
+  defp derive_form_module(resource, forms) do
+    explicit =
+      forms
+      |> Enum.map(& &1.module)
+      |> Enum.find(&(not is_nil(&1)))
+
+    explicit || Module.concat([resource, Form])
   end
 
   # ---------------------------------------------------------------------------
@@ -125,11 +110,10 @@ defmodule AshFormBuilder.Transformers.GenerateFormModule do
   end
 
   # ---------------------------------------------------------------------------
-  # Build the schema (list of field maps) for Domain Code Interface integration
+  # Build the schema (list of field maps) for Domain Code Interface
   # ---------------------------------------------------------------------------
 
   defp build_schema(entities, nested_map, required_preloads) do
-    # Top-level fields
     fields =
       entities
       |> Enum.filter(&is_struct(&1, AshFormBuilder.Field))
@@ -147,7 +131,6 @@ defmodule AshFormBuilder.Transformers.GenerateFormModule do
         }
       end)
 
-    # Nested form configurations
     nested_forms =
       entities
       |> Enum.filter(&is_struct(&1, AshFormBuilder.NestedForm))
@@ -156,8 +139,7 @@ defmodule AshFormBuilder.Transformers.GenerateFormModule do
         destination = Map.get(nested_map, nested.name)
 
         nested_fields =
-          nested.fields
-          |> Enum.map(fn f ->
+          Enum.map(nested.fields, fn f ->
             %{
               name: f.name,
               label: f.label || humanize(f.name),
@@ -194,232 +176,148 @@ defmodule AshFormBuilder.Transformers.GenerateFormModule do
 
   defp humanize(value), do: to_string(value)
 
+  # Last-resort fallback when the DSL state can't yet resolve the action's
+  # type (e.g. the action was declared via `defaults [:create]` and the
+  # action structs aren't materialised at this transformer phase). Names
+  # follow Ash's `defaults` conventions.
+  defp infer_action_type(:create), do: :create
+  defp infer_action_type(:read), do: :read
+  defp infer_action_type(:update), do: :update
+  defp infer_action_type(:destroy), do: :destroy
+  defp infer_action_type(_), do: nil
+
   # ---------------------------------------------------------------------------
   # Module creation
   # ---------------------------------------------------------------------------
 
-  defp create_form_module(module, resource, action, nested_config, schema, required_preloads) do
-    nested_config_escaped = Macro.escape(nested_config)
-    schema_escaped = Macro.escape(schema)
-    required_preloads_escaped = Macro.escape(required_preloads)
+  defp create_form_module(module, resource, action_specs) do
+    actions_list = Enum.map(action_specs, & &1.action)
+    actions_escaped = Macro.escape(actions_list)
+
+    nested_config_by_action =
+      Enum.reduce(action_specs, %{}, fn s, acc -> Map.put(acc, s.action, s.nested_config) end)
+
+    schema_by_action =
+      Enum.reduce(action_specs, %{}, fn s, acc -> Map.put(acc, s.action, s.schema) end)
+
+    preloads_by_action =
+      Enum.reduce(action_specs, %{}, fn s, acc ->
+        Map.put(acc, s.action, s.required_preloads)
+      end)
+
+    nested_escaped = Macro.escape(nested_config_by_action)
+    schema_escaped = Macro.escape(schema_by_action)
+    preloads_escaped = Macro.escape(preloads_by_action)
+
+    per_action_clauses =
+      Enum.flat_map(action_specs, &per_action_helper_quoted(&1.action, &1.type))
 
     contents =
       quote do
         @moduledoc """
-        Auto-generated form helper for `#{inspect(unquote(resource))}`.
+        Auto-generated form helpers for `#{inspect(unquote(resource))}`.
 
-        ## Creating a form
-
-            form = #{inspect(__MODULE__)}.for_create(actor: current_user)
-            {:ok, assign(socket, form: form)}
-
-        ## Updating a record
-
-            # For update actions, required relationships are automatically preloaded
-            form = #{inspect(__MODULE__)}.for_update(record, actor: current_user)
-            {:ok, assign(socket, form: form)}
-
-        ## Domain Code Interface Integration
-
-        When using Ash Domain Code Interfaces, this helper works with the
-        automatically generated `form_to_<action>` functions:
-
-            # Domain configuration:
-            define :form_to_create_clinic, action: :create
-
-            # LiveView usage:
-            form = MyApp.Billing.Clinic.Form.for_create(actor: current_user)
-
-        ## Schema Introspection
-
-        Access the inferred form schema:
-
-            MyApp.Clinic.Form.schema()
-            # => %{fields: [...], nested_forms: [...], required_preloads: [...]}
-
-        ## Rendering
-
-            <.live_component
-              module={AshFormBuilder.FormComponent}
-              id="my-form"
-              form={@form} />
-
-        The component sends `{:form_submitted, resource, result}` to the parent
-        LiveView on success.  Handle it in `handle_info/2`.
-
-        ## Domain-Driven Validation Assurance
-
-        Using the Domain Code Interface through `for_create/1` or `for_update/2`
-        ensures that all Ash Framework features are fully respected:
-
-        **Policy Enforcement:** All Ash policies defined on the resource are
-        automatically checked. Unauthorized users receive policy violation errors.
-
-        **Validations:** All server-side validations run on every form submission,
-        including custom validations defined in `validations do...end` blocks.
-        Errors are automatically rendered through the configured theme.
-
-        **Atomic Updates:** Changes defined in `changes do...end` blocks execute
-        atomically within the same transaction, ensuring data consistency.
-
-        **Preparations:** Any `prepare` steps defined on the action run before
-        form processing, allowing for data transformation or enrichment.
-
-        The UI Adapter (Theme) receives standard Ash form errors via the
-        `Phoenix.HTML.Form` struct's `:errors` field and renders them
-        appropriately for the chosen UI framework (MishkaChelekom, etc.).
+        One `for_<action>` helper is generated per declared form. Each
+        function returns a `Phoenix.HTML.Form` ready to assign to a
+        LiveView socket.
         """
 
         @resource unquote(resource)
-        @form_action unquote(action)
-        @nested_config unquote(nested_config_escaped)
-        @schema unquote(schema_escaped)
-        @required_preloads unquote(required_preloads_escaped)
+        @form_actions unquote(actions_escaped)
+        @nested_by_action unquote(nested_escaped)
+        @schema_by_action unquote(schema_escaped)
+        @preloads_by_action unquote(preloads_escaped)
 
-        @doc "The Ash resource this form is bound to."
+        @doc "The Ash resource this module is bound to."
         def resource, do: @resource
 
-        @doc "The action this form targets."
-        def action, do: @form_action
+        @doc "List of declared form actions."
+        def actions, do: @form_actions
+
+        @doc "Nested-form config for the given action."
+        def nested_forms(action), do: Map.fetch!(@nested_by_action, action)
+
+        @doc "Inferred schema for the given action."
+        def schema(action), do: Map.fetch!(@schema_by_action, action)
+
+        @doc "Relationships to preload before editing for the given action."
+        def required_preloads(action), do: Map.get(@preloads_by_action, action, [])
 
         @doc """
-        AshPhoenix.Form `:forms` config for nested relationships.
-
-        Prefer `nested_forms/0` for consistency with Ash Domain Code Interfaces.
+        Build a form for any declared action. Update / destroy actions
+        require `:record` in `opts`.
         """
-        @deprecated "Use nested_forms/0 instead for consistency with Domain Code Interfaces"
-        def nested_config, do: @nested_config
-
-        @doc """
-        Returns the nested forms configuration as a keyword list.
-        Compatible with AshPhoenix.Form's `:forms` option.
-        """
-        def nested_forms, do: @nested_config
-
-        @doc """
-        Returns the inferred form schema.
-
-        ## Schema Structure
-
-            %{
-              fields: [
-                %{
-                  name: :field_name,
-                  label: "Field Label",
-                  type: :text_input,
-                  required: true,
-                  options: [],
-                  relationship: nil,
-                  relationship_type: nil,
-                  destination_resource: nil,
-                  opts: []
-                }
-              ],
-              nested_forms: [
-                %{
-                  name: :nested_name,
-                  relationship: :relationship_name,
-                  cardinality: :many,
-                  destination_resource: RelatedResource,
-                  create_action: :create,
-                  update_action: :update,
-                  fields: [...]
-                }
-              ],
-              required_preloads: [:relation_name, ...]
-            }
-        """
-        def schema, do: @schema
-
-        @doc """
-        Returns the list of relationships that must be preloaded for update forms.
-
-        This ensures many_to_many relationships are loaded when editing records,
-        so the form can display existing associations.
-        """
-        def required_preloads, do: @required_preloads
-
-        @doc """
-        Creates an `AshPhoenix.Form` (already wrapped with `to_form/1`) for
-        the declared action.  Pass `actor:` and any other AshPhoenix options.
-
-            form = #{inspect(__MODULE__)}.for_action(:create, actor: current_user)
-        """
-        def for_action(action_name, opts \\ []) do
-          opts = Keyword.put_new(opts, :forms, @nested_config)
-          action_type = Ash.Resource.Info.action(@resource, action_name).type
+        def for_action(action, opts \\ []) do
+          opts = Keyword.put_new(opts, :forms, nested_forms(action))
+          action_type = Ash.Resource.Info.action(@resource, action).type
 
           ash_form =
             case action_type do
               :create ->
-                AshPhoenix.Form.for_create(@resource, action_name, opts)
+                AshPhoenix.Form.for_create(@resource, action, opts)
 
               :update ->
-                record = Keyword.fetch!(opts, :record)
-                opts = Keyword.delete(opts, :record)
-                AshPhoenix.Form.for_update(record, action_name, opts)
+                {record, opts} = Keyword.pop!(opts, :record)
+                record = maybe_preload(record, action, opts)
+                AshPhoenix.Form.for_update(record, action, opts)
 
               :destroy ->
-                record = Keyword.fetch!(opts, :record)
-                opts = Keyword.delete(opts, :record)
-                AshPhoenix.Form.for_destroy(record, action_name, opts)
+                {record, opts} = Keyword.pop!(opts, :record)
+                AshPhoenix.Form.for_destroy(record, action, opts)
 
               :read ->
-                AshPhoenix.Form.for_read(@resource, action_name, opts)
+                AshPhoenix.Form.for_read(@resource, action, opts)
             end
 
           Phoenix.Component.to_form(ash_form)
         end
 
-        @doc """
-        Creates an `AshPhoenix.Form` using the Domain Code Interface pattern.
-
-        This is a convenience wrapper that works with the Domain's auto-generated
-        `form_to_<action>` functions. It ensures all Ash validations, atomics,
-        and policies are fully respected.
-
-        ## Example
-
-            # With Domain Code Interface:
-            form = MyApp.Billing.form_to_create_clinic(%{}, actor: current_user)
-
-            # With this helper:
-            form = MyApp.Billing.Clinic.Form.for_domain_action(:create, actor: current_user)
-        """
-        def for_domain_action(action_name \\ @form_action, opts \\ []) do
-          # The Domain Code Interface automatically handles:
-          # - Policy enforcement
-          # - Preparations and changes
-          # - Atomic updates
-          # - Validation rules
-          for_action(action_name, opts)
+        defp maybe_preload(record, action, opts) do
+          case required_preloads(action) do
+            [] -> record
+            preloads -> Ash.load!(record, preloads, opts)
+          end
         end
 
-        @doc "Convenience wrapper around `for_action/2` for create actions."
-        def for_create(opts \\ []) do
-          for_action(@form_action, opts)
-        end
-
-        @doc """
-        Convenience wrapper around `for_action/2` for update actions.
-        Pass the existing record as the first argument.
-
-        Automatically preloads required relationships (e.g., many_to_many) to ensure
-        the form displays existing associations correctly.
-        """
-        def for_update(record, opts \\ []) do
-          # Automatically preload required relationships for update forms
-          record =
-            if Enum.empty?(@required_preloads) do
-              record
-            else
-              Ash.load!(record, @required_preloads, opts)
-            end
-
-          for_action(@form_action, Keyword.put(opts, :record, record))
-        end
+        unquote_splicing(per_action_clauses)
       end
 
     Module.create(module, contents, Macro.Env.location(__ENV__))
   end
+
+  # One `for_<action>/N` helper is generated per declared form, regardless
+  # of whether the action uses a standard name (`:create`, `:update`) or a
+  # custom one (`:archive`, `:publish`, `:complete`). The arity depends on
+  # the action's type — record-shaped actions (`:update`, `:destroy`) take
+  # the record as the first argument, while resource-shaped actions
+  # (`:create`, `:read`) only take options.
+  defp per_action_helper_quoted(action, type) when type in [:create, :read] do
+    fun_name = :"for_#{action}"
+
+    [
+      quote do
+        @doc unquote("Build a form for the `:#{action}` (#{type}) action.")
+        def unquote(fun_name)(opts \\ []), do: for_action(unquote(action), opts)
+      end
+    ]
+  end
+
+  defp per_action_helper_quoted(action, type) when type in [:update, :destroy] do
+    fun_name = :"for_#{action}"
+
+    [
+      quote do
+        @doc unquote(
+               "Build a form for the `:#{action}` (#{type}) action. Pass the existing record as the first argument."
+             )
+        def unquote(fun_name)(record, opts \\ []) do
+          for_action(unquote(action), Keyword.put(opts, :record, record))
+        end
+      end
+    ]
+  end
+
+  # Action exists in DSL but type couldn't be resolved at compile time —
+  # skip the shortcut. Callers can still use `for_action/2`.
+  defp per_action_helper_quoted(_action, _type), do: []
 end

@@ -68,28 +68,29 @@ defmodule AshFormBuilder.Test.UploadResources do
       end
     end
 
-    form do
-      action(:create)
-      submit_label("Save profile")
+    forms do
+      form :create do
+        submit_label("Save profile")
 
-      field :name do
-        label("Full name")
-        required(true)
-      end
+        field :name do
+          label("Full name")
+          required(true)
+        end
 
-      field :avatar do
-        type(:file_upload)
-        label("Profile photo")
-        hint("JPEG or PNG, max 5 MB")
+        field :avatar do
+          type(:file_upload)
+          label("Profile photo")
+          hint("JPEG or PNG, max 5 MB")
 
-        opts(
-          upload: [
-            cloud: AshFormBuilder.Test.MockCloud,
-            max_entries: 1,
-            max_file_size: 5_000_000,
-            accept: ~w(.jpg .jpeg .png)
-          ]
-        )
+          opts(
+            upload: [
+              cloud: AshFormBuilder.Test.MockCloud,
+              max_entries: 1,
+              max_file_size: 5_000_000,
+              accept: ~w(.jpg .jpeg .png)
+            ]
+          )
+        end
       end
     end
   end

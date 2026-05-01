@@ -88,9 +88,10 @@ defmodule AshFormBuilder.Infer do
     Ash.Type.CiString => :text_input,
     :ci_string => :text_input,
 
-    # Boolean
-    Ash.Type.Boolean => :checkbox,
-    :boolean => :checkbox,
+    # Boolean — defaults to a toggle switch; declare `type :checkbox`
+    # in the DSL to opt back into a square checkbox.
+    Ash.Type.Boolean => :toggle,
+    :boolean => :toggle,
 
     # Numeric types
     Ash.Type.Integer => :number,
@@ -200,18 +201,53 @@ defmodule AshFormBuilder.Infer do
     else
       opts = validate_opts(opts)
 
-      # Process accept list (attributes and relationships)
-      accept_fields = process_accept_list(resource, action.accept || [], opts)
+      accept_list = resolve_accept_list(resource, action)
+      accept_fields = process_accept_list(resource, accept_list, opts)
 
-      # Process action arguments
-      arg_fields = process_arguments(action.arguments || [])
+      # Detect manage_relationship configurations on the action — these
+      # need to be rendered using the *relationship's* UI (combobox /
+      # checkbox group) even when the action only exposes them through an
+      # argument.
+      manage_rels = manage_relationship_specs(action)
+      manage_argument_names = MapSet.new(manage_rels, & &1.argument)
 
-      # Detect manage_relationship relationships not in accept list
-      manage_rel_fields = process_manage_relationships(resource, action, opts)
+      # Process action arguments — skip any argument that is itself driven
+      # by a `manage_relationship` change so we don't render the raw
+      # argument type alongside the relationship UI.
+      arg_fields =
+        action.arguments
+        |> List.wrap()
+        |> Enum.reject(&(&1.name in manage_argument_names))
+        |> process_arguments()
+
+      manage_rel_fields = process_manage_relationships(resource, manage_rels, opts)
 
       # Combine in order: arguments first, then accept fields, then manage_relationship fields
       arg_fields ++ accept_fields ++ manage_rel_fields
     end
+  end
+
+  # Ash 3.0 default actions leave `accept` empty unless explicitly set. Fall
+  # back to the resource's writable public attributes so zero-config means
+  # zero config.
+  defp resolve_accept_list(resource, %{type: type} = action) when type in [:create, :update] do
+    case action.accept do
+      list when is_list(list) and list != [] ->
+        list
+
+      _ ->
+        resource
+        |> Info.attributes()
+        |> Enum.filter(&writable_form_attribute?/1)
+        |> Enum.map(& &1.name)
+    end
+  end
+
+  defp resolve_accept_list(_resource, action), do: action.accept || []
+
+  defp writable_form_attribute?(attr) do
+    Map.get(attr, :writable?, true) and
+      not Map.get(attr, :primary_key?, false)
   end
 
   @doc """
@@ -328,10 +364,14 @@ defmodule AshFormBuilder.Infer do
     Keyword.validate!(opts,
       ignore_fields: [:id, :inserted_at, :updated_at, :deleted_at],
       include_timestamps: false,
-      many_to_many_as: :multiselect_combobox,
+      # Many-to-many defaults to a vertical list of checkboxes (the new
+      # 0.4.0 default — easier UX for short lists, no JS needed). Set
+      # `many_to_many_as: :multiselect_combobox` to opt back into the
+      # searchable/creatable combobox.
+      many_to_many_as: :checkbox_group,
       has_many_as: :nested_form,
       belongs_to_as: :select,
-      creatable: false,
+      creatable: true,
       create_action: :create,
       create_label: "Create \"\"",
       search_param: "query",
@@ -348,48 +388,44 @@ defmodule AshFormBuilder.Infer do
     |> Enum.reject(&is_nil/1)
   end
 
-  defp process_manage_relationships(resource, action, opts) do
-    # Get relationships configured with manage_relationship in the action
-    action
-    |> get_manage_relationship_names()
-    |> Enum.reject(&should_ignore?(&1, opts))
-    |> Enum.map(&infer_manage_relationship(&1, resource, opts))
-    |> Enum.reject(&is_nil/1)
+  # Returns a list of `%{argument: atom, relationship: atom, opts: keyword}`
+  # describing every `change manage_relationship(...)` declared on the
+  # action. Works against the real `Ash.Resource.Change` struct shape that
+  # Ash 3.0 produces (the change body is a `{ChangeModule, opts}` tuple).
+  defp manage_relationship_specs(action) do
+    changes =
+      case action do
+        %{changes: c} when is_list(c) -> c
+        _ -> []
+      end
+
+    changes
+    |> Enum.flat_map(&extract_manage_relationship_spec/1)
+    |> Enum.uniq_by(& &1.relationship)
   end
 
-  defp get_manage_relationship_names(action) do
-    # Extract relationship names from manage_relationship configurations
-    # In Ash 3.0, the changes list contains the manage_relationship configuration
-    case action do
-      %Ash.Resource.Actions.Create{changes: changes} ->
-        extract_manage_rels_from_changes(changes)
+  defp extract_manage_relationship_spec(%Ash.Resource.Change{
+         change: {Ash.Resource.Change.ManageRelationship, change_opts}
+       })
+       when is_list(change_opts) do
+    rel = Keyword.get(change_opts, :relationship)
+    arg = Keyword.get(change_opts, :argument, rel)
+    sub = Keyword.get(change_opts, :opts, [])
 
-      %Ash.Resource.Actions.Update{changes: changes} ->
-        extract_manage_rels_from_changes(changes)
-
-      _ ->
-        []
+    if is_atom(rel) and not is_nil(rel) do
+      [%{relationship: rel, argument: arg, opts: sub}]
+    else
+      []
     end
   end
 
-  defp extract_manage_rels_from_changes(changes) do
-    changes
-    |> Enum.flat_map(fn change ->
-      # Changes can be various structs, we look for relationship-related changes
-      cond do
-        # Check if it's a manage_relationship change (has :relationship key)
-        is_map(change) and Map.has_key?(change, :relationship) and is_atom(change.relationship) ->
-          [change.relationship]
+  defp extract_manage_relationship_spec(_), do: []
 
-        # Check if it's a struct with relationship field
-        is_struct(change) and Map.has_key?(change, :relationship) and is_atom(change.relationship) ->
-          [change.relationship]
-
-        true ->
-          []
-      end
-    end)
-    |> Enum.uniq()
+  defp process_manage_relationships(resource, manage_rels, opts) do
+    manage_rels
+    |> Enum.reject(&should_ignore?(&1.relationship, opts))
+    |> Enum.map(&infer_manage_relationship(&1.relationship, resource, opts, &1.argument))
+    |> Enum.reject(&is_nil/1)
   end
 
   defp should_ignore?(field_name, opts) do
@@ -454,20 +490,33 @@ defmodule AshFormBuilder.Infer do
     end
   end
 
-  defp infer_manage_relationship(rel_name, resource, opts) do
-    # Get the relationship from the resource
+  defp infer_manage_relationship(rel_name, resource, opts, argument_name) do
     case Info.relationship(resource, rel_name) do
       nil ->
         nil
 
       rel ->
+        # When the relationship is exposed through an argument
+        # (`change manage_relationship(:tags, :tags, …)`), the form
+        # parameter must use the argument name so AshPhoenix submits the
+        # value into the correct slot.
+        rel_for_field =
+          case argument_name do
+            nil -> rel
+            name when is_atom(name) -> Map.put(rel, :name, name)
+          end
+
         case rel.type do
           :many_to_many ->
-            build_combobox_field(rel, opts)
+            build_combobox_field(rel_for_field, opts)
 
           :belongs_to ->
-            build_belongs_to_field(rel, opts)
+            build_belongs_to_field(rel_for_field, opts)
 
+          # has_many is rendered as a nested form (sub-form with add/remove),
+          # not a single field. `Info.effective_entities/2` synthesizes a
+          # NestedForm struct for these from the same manage_relationship
+          # spec, so we deliberately return nil here.
           _ ->
             nil
         end
@@ -559,6 +608,12 @@ defmodule AshFormBuilder.Infer do
       constraints[:one_of] ->
         :select
 
+      # Long strings auto-promote to textarea so users get a sensible
+      # default for description/notes/body without writing `type :textarea`.
+      string_type?(type) and is_integer(constraints[:max_length]) and
+          constraints[:max_length] > 255 ->
+        :textarea
+
       # Enum module detection
       is_atom(type) and function_exported?(type, :values, 0) ->
         :select
@@ -572,6 +627,9 @@ defmodule AshFormBuilder.Infer do
         :text_input
     end
   end
+
+  defp string_type?(type),
+    do: type in [Ash.Type.String, :string, Ash.Type.CiString, :ci_string]
 
   defp infer_options(type, constraints) do
     cond do

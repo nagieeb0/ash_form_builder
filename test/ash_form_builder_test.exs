@@ -16,44 +16,45 @@ defmodule AshFormBuilderTest do
   # ===========================================================================
 
   describe "DSL introspection / explicit declarations" do
-    test "form_action returns the declared action" do
-      assert Info.form_action(@post) == :create
+    test "forms/1 returns the declared form configs" do
+      assert [config] = Info.forms(@post)
+      assert config.action == :create
     end
 
     test "form_submit_label returns the declared label" do
-      assert Info.form_submit_label(@post) == "Publish post"
+      assert Info.form_submit_label(@post, :create) == "Publish post"
     end
 
     test "form_submit_label defaults to 'Submit' when not set" do
-      assert Info.form_submit_label(@article) == "Submit"
+      assert Info.form_submit_label(@article, :create) == "Submit"
     end
 
     test "form_wrapper_class returns the declared class" do
-      assert Info.form_wrapper_class(@post) == "post-form-fields"
+      assert Info.form_wrapper_class(@post, :create) == "post-form-fields"
     end
 
     test "form_wrapper_class defaults to 'space-y-4' when not set" do
-      assert Info.form_wrapper_class(@article) == "space-y-4"
+      assert Info.form_wrapper_class(@article, :create) == "space-y-4"
     end
 
     test "has_form? returns true for resources with form block" do
-      assert Info.has_form?(@post)
-      assert Info.has_form?(@article)
+      assert Info.has_form?(@post, :create)
+      assert Info.has_form?(@article, :create)
     end
 
     test "form_fields returns only explicit Field structs in declaration order" do
-      fields = Info.form_fields(@post)
+      fields = Info.form_fields(@post, :create)
       assert length(fields) == 4
       assert Enum.all?(fields, &is_struct(&1, Field))
       assert Enum.map(fields, & &1.name) == [:title, :body, :status, :published]
     end
 
     test "form_fields returns empty list for zero-config resource" do
-      assert Info.form_fields(@article) == []
+      assert Info.form_fields(@article, :create) == []
     end
 
     test "form_nested returns only NestedForm structs" do
-      nested = Info.form_nested(@post)
+      nested = Info.form_nested(@post, :create)
       assert length(nested) == 1
       [tags] = nested
       assert tags.name == :tags
@@ -63,17 +64,17 @@ defmodule AshFormBuilderTest do
     end
 
     test "nested form fields are populated" do
-      [tags] = Info.form_nested(@post)
+      [tags] = Info.form_nested(@post, :create)
       assert [%Field{name: :name, label: "Tag name", required: true}] = tags.fields
     end
 
     test "form_entities returns all entities in declaration order" do
-      entities = Info.form_entities(@post)
+      entities = Info.form_entities(@post, :create)
       assert length(entities) == 5
     end
 
     test "build_nested_forms_config returns correct AshPhoenix config" do
-      config = Info.build_nested_forms_config(@post)
+      config = Info.build_nested_forms_config(@post, :create)
       assert [{:tags, opts}] = config
       assert opts[:type] == :list
       assert opts[:resource] == Tag
@@ -87,7 +88,7 @@ defmodule AshFormBuilderTest do
 
   describe "explicit field DSL options" do
     test "title field options" do
-      [title | _] = Info.form_fields(@post)
+      [title | _] = Info.form_fields(@post, :create)
       assert title.name == :title
       assert title.label == "Title"
       assert title.placeholder == "Enter a title…"
@@ -127,12 +128,12 @@ defmodule AshFormBuilderTest do
                AshFormBuilder.Test.Resources.Post
     end
 
-    test "action/0 returns the declared action" do
-      assert PostForm.action() == :create
+    test "actions/0 returns the declared actions" do
+      assert PostForm.actions() == [:create]
     end
 
-    test "nested_config/0 has correct AshPhoenix structure" do
-      config = PostForm.nested_config()
+    test "nested_forms/1 returns AshPhoenix-shaped config" do
+      config = PostForm.nested_forms(:create)
       assert [{:tags, opts}] = config
       assert opts[:type] == :list
       assert opts[:resource] == Tag
@@ -160,10 +161,10 @@ defmodule AshFormBuilderTest do
       assert title.type == :text_input
     end
 
-    test "infers :checkbox for :boolean attributes" do
+    test "infers :toggle for :boolean attributes" do
       fields = TypeInference.infer_fields(@article, :create)
       published = Enum.find(fields, &(&1.name == :published))
-      assert published.type == :checkbox
+      assert published.type == :toggle
     end
 
     test "infers :number for :integer attributes" do
@@ -237,27 +238,27 @@ defmodule AshFormBuilderTest do
 
   describe "effective_fields/1 — auto-inference" do
     test "zero-config resource returns all inferred fields" do
-      fields = Info.effective_fields(@article)
+      fields = Info.effective_fields(@article, :create)
       assert length(fields) == 5
       assert Enum.all?(fields, &is_struct(&1, Field))
     end
 
     test "zero-config fields have auto-inferred types" do
-      fields = Info.effective_fields(@article)
+      fields = Info.effective_fields(@article, :create)
       assert field_type(fields, :title) == :text_input
-      assert field_type(fields, :published) == :checkbox
+      assert field_type(fields, :published) == :toggle
       assert field_type(fields, :view_count) == :number
       assert field_type(fields, :status) == :select
     end
 
     test "zero-config fields have humanized labels" do
-      fields = Info.effective_fields(@article)
+      fields = Info.effective_fields(@article, :create)
       assert field_label(fields, :view_count) == "View Count"
       assert field_label(fields, :title) == "Title"
     end
 
     test "explicit field overrides inferred field for same name" do
-      fields = Info.effective_fields(@review)
+      fields = Info.effective_fields(@review, :create)
       body = Enum.find(fields, &(&1.name == :body))
       # Explicit declaration wins
       assert body.label == "Full Review"
@@ -266,7 +267,7 @@ defmodule AshFormBuilderTest do
     end
 
     test "non-overridden fields in partial-override resource are still inferred" do
-      fields = Info.effective_fields(@review)
+      fields = Info.effective_fields(@review, :create)
       title = Enum.find(fields, &(&1.name == :title))
       assert title.label == "Title"
       assert title.type == :text_input
@@ -277,19 +278,19 @@ defmodule AshFormBuilderTest do
     end
 
     test "field order follows the action's accept list" do
-      fields = Info.effective_fields(@review)
+      fields = Info.effective_fields(@review, :create)
       names = Enum.map(fields, & &1.name)
       assert names == [:title, :body, :rating, :approved]
     end
 
     test "explicit-only resource returns all four declared fields" do
-      fields = Info.effective_fields(@post)
+      fields = Info.effective_fields(@post, :create)
       assert length(fields) == 4
       assert Enum.map(fields, & &1.name) == [:title, :body, :status, :published]
     end
 
     test "explicit fields preserve their DSL options even when inferred would differ" do
-      fields = Info.effective_fields(@post)
+      fields = Info.effective_fields(@post, :create)
       # Status was declared as :select with explicit options — not auto-inferred
       status = Enum.find(fields, &(&1.name == :status))
       assert status.label == "Status"
@@ -303,7 +304,7 @@ defmodule AshFormBuilderTest do
 
   describe "effective_entities/1" do
     test "includes both effective fields and nested forms" do
-      entities = Info.effective_entities(@post)
+      entities = Info.effective_entities(@post, :create)
       fields = Enum.filter(entities, &is_struct(&1, AshFormBuilder.Field))
       nested = Enum.filter(entities, &is_struct(&1, AshFormBuilder.NestedForm))
       assert length(fields) == 4
@@ -311,7 +312,7 @@ defmodule AshFormBuilderTest do
     end
 
     test "fields come before nested forms" do
-      entities = Info.effective_entities(@post)
+      entities = Info.effective_entities(@post, :create)
 
       last_field_index =
         entities
@@ -329,7 +330,7 @@ defmodule AshFormBuilderTest do
     end
 
     test "zero-config resource entities contain only inferred fields (no nested)" do
-      entities = Info.effective_entities(@article)
+      entities = Info.effective_entities(@article, :create)
       assert length(entities) == 5
       assert Enum.all?(entities, &is_struct(&1, AshFormBuilder.Field))
     end
@@ -391,7 +392,7 @@ defmodule AshFormBuilderTest do
           __changed__: %{},
           resource: Post,
           form: form,
-          entities: Info.effective_entities(Post),
+          entities: Info.effective_entities(Post, :create),
           submit_label: "Submit",
           wrapper_class: "space-y-4",
           form_id: "post-form",
@@ -449,7 +450,7 @@ defmodule AshFormBuilderTest do
           __changed__: %{},
           resource: Post,
           form: form,
-          entities: Info.effective_entities(Post),
+          entities: Info.effective_entities(Post, :create),
           submit_label: "Submit",
           wrapper_class: "space-y-4",
           form_id: "post-form",
@@ -483,7 +484,7 @@ defmodule AshFormBuilderTest do
           __changed__: %{},
           resource: Post,
           form: form,
-          entities: Info.effective_entities(Post),
+          entities: Info.effective_entities(Post, :create),
           submit_label: "Submit",
           wrapper_class: "space-y-4",
           form_id: "post-form",
@@ -516,7 +517,7 @@ defmodule AshFormBuilderTest do
   # ===========================================================================
 
   defp field_by_name(resource, name) do
-    resource |> Info.form_fields() |> Enum.find(&(&1.name == name))
+    resource |> Info.form_fields(:create) |> Enum.find(&(&1.name == name))
   end
 
   defp field_type(fields, name) do

@@ -20,25 +20,26 @@ defmodule AshFormBuilder.Test.DslSampleResource do
     defaults([:read, :update, :destroy, create: [:title, :body, :published]])
   end
 
-  form do
-    action(:create)
-    submit_label("Create Post")
-    wrapper_class("space-y-4")
+  forms do
+    form :create do
+      submit_label("Create Post")
+      wrapper_class("space-y-4")
 
-    field(:title) do
-      label("Post Title")
-      placeholder("Enter title")
-      required(true)
-    end
+      field(:title) do
+        label("Post Title")
+        placeholder("Enter title")
+        required(true)
+      end
 
-    field(:body) do
-      label("Content")
-      type(:textarea)
-    end
+      field(:body) do
+        label("Content")
+        type(:textarea)
+      end
 
-    field(:published) do
-      label("Publish immediately")
-      type(:checkbox)
+      field(:published) do
+        label("Publish immediately")
+        type(:checkbox)
+      end
     end
   end
 end

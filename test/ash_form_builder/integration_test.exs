@@ -26,7 +26,7 @@ defmodule AshFormBuilder.IntegrationTest do
 
     test "Info.effective_fields/1 applies DSL overrides on top of inference" do
       effective_specialties =
-        Info.effective_fields(Clinic) |> Enum.find(&(&1.name == :specialties))
+        Info.effective_fields(Clinic, :create) |> Enum.find(&(&1.name == :specialties))
 
       assert effective_specialties.label == "Specialties (DSL)"
       assert Keyword.get(effective_specialties.opts, :search_event) == "search_specialties"
@@ -44,8 +44,8 @@ defmodule AshFormBuilder.IntegrationTest do
   end
 
   describe "AshPhoenix.Form compatibility" do
-    test "generated nested_forms/0 is accepted by AshPhoenix.Form.for_create/3" do
-      forms = Clinic.Form.nested_forms()
+    test "generated nested_forms/1 is accepted by AshPhoenix.Form.for_create/3" do
+      forms = Clinic.Form.nested_forms(:create)
 
       ash_form =
         AshPhoenix.Form.for_create(Clinic, :create,
@@ -64,10 +64,14 @@ defmodule AshFormBuilder.IntegrationTest do
   end
 
   describe "Generated Clinic.Form module" do
-    test "exports nested_forms/0, schema/0, and required_preloads/0" do
-      assert Clinic.Form.required_preloads() == []
-      assert is_list(Clinic.Form.nested_forms())
-      assert match?(%{fields: _, nested_forms: _, required_preloads: _}, Clinic.Form.schema())
+    test "exports nested_forms/1, schema/1, and required_preloads/1" do
+      assert Clinic.Form.required_preloads(:create) == []
+      assert is_list(Clinic.Form.nested_forms(:create))
+
+      assert match?(
+               %{fields: _, nested_forms: _, required_preloads: _},
+               Clinic.Form.schema(:create)
+             )
     end
   end
 end

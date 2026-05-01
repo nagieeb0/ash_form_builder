@@ -62,52 +62,53 @@ defmodule AshFormBuilder.Test.Resources do
       ])
     end
 
-    form do
-      action(:create)
-      submit_label("Publish post")
-      wrapper_class("post-form-fields")
+    forms do
+      form :create do
+        submit_label("Publish post")
+        wrapper_class("post-form-fields")
 
-      field :title do
-        label("Title")
-        placeholder("Enter a title…")
-        required(true)
-      end
-
-      field :body do
-        label("Body")
-        type(:textarea)
-        hint("Markdown is supported")
-      end
-
-      field :status do
-        label("Status")
-        type(:select)
-        options([{"Draft", :draft}, {"Published", :published}])
-      end
-
-      field :published do
-        label("Publicly visible?")
-        type(:checkbox)
-      end
-
-      nested :tags do
-        label("Tags")
-        cardinality(:many)
-        add_label("Add tag")
-        remove_label("Remove")
-        create_action(:create)
-        update_action(:update)
-
-        field :name do
-          label("Tag name")
+        field :title do
+          label("Title")
+          placeholder("Enter a title…")
           required(true)
+        end
+
+        field :body do
+          label("Body")
+          type(:textarea)
+          hint("Markdown is supported")
+        end
+
+        field :status do
+          label("Status")
+          type(:select)
+          options([{"Draft", :draft}, {"Published", :published}])
+        end
+
+        field :published do
+          label("Publicly visible?")
+          type(:checkbox)
+        end
+
+        nested :tags do
+          label("Tags")
+          cardinality(:many)
+          add_label("Add tag")
+          remove_label("Remove")
+          create_action(:create)
+          update_action(:update)
+
+          field :name do
+            label("Tag name")
+            required(true)
+          end
         end
       end
     end
   end
 
   # ---------------------------------------------------------------------------
-  # Article — zero-config form: only `action :create`, no explicit fields.
+  # Article — zero-config form: only `form :create`, no explicit fields.
   # All fields are auto-inferred from the action's accept list.
   # ---------------------------------------------------------------------------
 
@@ -144,9 +145,10 @@ defmodule AshFormBuilder.Test.Resources do
       ])
     end
 
-    form do
-      # Intentionally empty — all fields are auto-inferred
-      action(:create)
+    forms do
+      form :create do
+        # Intentionally empty — all fields are auto-inferred
+      end
     end
   end
 
@@ -182,13 +184,14 @@ defmodule AshFormBuilder.Test.Resources do
       ])
     end
 
-    form do
-      action(:create)
-      # Only override body — title, rating, approved are inferred
-      field :body do
-        label("Full Review")
-        type(:textarea)
-        hint("Be as detailed as possible")
+    forms do
+      form :create do
+        # Only override body — title, rating, approved are inferred
+        field :body do
+          label("Full Review")
+          type(:textarea)
+          hint("Be as detailed as possible")
+        end
       end
     end
   end
@@ -278,10 +281,7 @@ defmodule AshFormBuilder.Test.Resources do
     end
 
     actions do
-      defaults([
-        :read,
-        :destroy
-      ])
+      defaults([:read, :destroy])
 
       create :create do
         accept([:title, :content])
@@ -294,34 +294,89 @@ defmodule AshFormBuilder.Test.Resources do
       end
     end
 
-    form do
-      action(:create)
+    forms do
+      form :create do
+        field :title do
+          label("Post Title")
+          placeholder("Enter post title")
+          required(true)
+        end
 
-      field :title do
-        label("Post Title")
-        placeholder("Enter post title")
-        required(true)
+        field :content do
+          label("Content")
+          type(:textarea)
+        end
+
+        field :categories do
+          type(:multiselect_combobox)
+          label("Categories")
+          placeholder("Search or create categories")
+
+          opts(
+            creatable: true,
+            create_action: :create,
+            create_label: "Create \"",
+            search_event: "search_categories",
+            debounce: 300,
+            label_key: :name,
+            value_key: :id
+          )
+        end
+      end
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # ManagedPost — exercises the `change manage_relationship(...)` form
+  # ---------------------------------------------------------------------------
+
+  defmodule ManagedPost do
+    @moduledoc false
+    use Ash.Resource,
+      domain: AshFormBuilder.Test.Resources.Blog,
+      data_layer: Ash.DataLayer.Ets,
+      extensions: [AshFormBuilder]
+
+    ets do
+      private?(true)
+    end
+
+    attributes do
+      uuid_primary_key(:id)
+      attribute(:title, :string, allow_nil?: false, public?: true)
+    end
+
+    relationships do
+      many_to_many(:categories, Category) do
+        through(BlogPostCategory)
+        source_attribute_on_join_resource(:blog_post_id)
+        destination_attribute_on_join_resource(:category_id)
+      end
+    end
+
+    actions do
+      defaults([:read, :destroy])
+
+      create :create do
+        accept([:title])
+        argument(:categories, {:array, :uuid})
+        change(manage_relationship(:categories, :categories, type: :append_and_remove))
       end
 
-      field :content do
-        label("Content")
-        type(:textarea)
+      update :update do
+        require_atomic?(false)
+        accept([:title])
+        argument(:categories, {:array, :uuid})
+        change(manage_relationship(:categories, :categories, type: :append_and_remove))
       end
+    end
 
-      field :categories do
-        type(:multiselect_combobox)
-        label("Categories")
-        placeholder("Search or create categories")
-
-        opts(
-          creatable: true,
-          create_action: :create,
-          create_label: "Create \"",
-          search_event: "search_categories",
-          debounce: 300,
-          label_key: :name,
-          value_key: :id
-        )
+    forms do
+      form :create do
+        field :title do
+          label("Title")
+          required(true)
+        end
       end
     end
   end
@@ -342,6 +397,7 @@ defmodule AshFormBuilder.Test.Resources do
       resource(Category)
       resource(BlogPost)
       resource(BlogPostCategory)
+      resource(ManagedPost)
     end
   end
 end

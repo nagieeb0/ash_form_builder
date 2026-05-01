@@ -14,6 +14,207 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Multi-step form wizards
 - Form draft auto-save
 
+## [0.4.0] - 2026-05-01
+
+This release is a substantial reshape of the public API. The DSL now
+supports one form per Ash action (the v0.3 single-form model is gone),
+themes are pluggable by short atom name, mix tasks were renamed to
+match Phoenix conventions, and the default UI for booleans and
+many-to-many is friendlier out of the box. The default theme also
+ships with a from-scratch iOS-style wheel datepicker, an upsert-aware
+multiselect combobox, and a first-class `:file_upload` DSL.
+
+### 💥 Breaking changes
+
+- **Multi-form DSL.** A resource's `form do … end` block is replaced by
+  a `forms do form :action do … end end` section. Each `form :action`
+  entity declares its own submit label, fields, nested blocks, theme,
+  accent, and transition style. Multiple `form` blocks per resource now
+  work correctly (the old `form do … end` syntax silently merged them
+  into one — see #1).
+- **`AshFormBuilder.Info` accessors take an action.** Every accessor
+  (`form_fields/2`, `form_nested/2`, `form_submit_label/2`, etc.) now
+  takes the action atom as its second argument. New helpers:
+  `forms/1`, `form_config/2`, `form_theme/2`, `form_accent/2`,
+  `form_transitions/2`. The old 1-arity `form_action/1` is removed —
+  use `forms/1` and inspect `config.action`.
+- **`Resource.Form` helper module reshape.** The transformer now
+  generates `for_create/1`, `for_read/1`, `for_update/2`,
+  `for_destroy/2`, plus a generic `for_action/2`. Introspection helpers
+  `nested_forms/1`, `schema/1`, and `required_preloads/1` are now
+  action-keyed; `actions/0` lists declared actions. The old
+  `nested_config/0` and `action/0` are removed.
+- **Mix tasks renamed and reshaped.**
+  - `mix ash_form_builder.gen.live Context Resource` →
+    `mix ash_form.gen.live -r MyApp.Context.Resource`
+  - `mix ash_form_builder.gen.form MyApp.Resource` →
+    `mix ash_form.gen.form -r MyApp.Resource`
+
+  Both tasks now require `--resource` / `-r` and accept
+  `--theme`, `--accent`, `--transitions` flags.
+- **Default boolean UI is now `:toggle` (animated switch).** Set
+  `type :checkbox` in the DSL to opt back into a square checkbox.
+- **Default many-to-many UI is now `:checkbox_group`** (vertical list
+  of checkboxes). Set `type :multiselect_combobox` for the searchable
+  multi-select.
+
+### ✨ Added
+
+- **iOS-style wheel datepicker** in `AshFormBuilder.Themes.Default`.
+  Triggered as a centered modal `<dialog>` with three (date) or five
+  (datetime) scroll-snap wheels for month / day / year (+ hour / minute).
+  Day wheel auto-clamps to month length (Feb 29, 30-day months). Pure
+  Tailwind + scroll-snap CSS + a single colocated hook — no JS deps.
+  Smooth scroll feel via `scroll-behavior: smooth`, `scroll-snap-stop:
+  always`, rAF-batched active highlight, and a `wheel` handler that
+  translates desktop mouse-wheel ticks into one-step snaps.
+- **File upload preview row.** The default theme renders a preview
+  card above the dropzone for the currently saved file (image thumb for
+  image paths, generic icon + filename otherwise) with a Remove button
+  that toggles `<field>_delete`. While uploading, each in-flight entry
+  shows a thumbnail (`<.live_img_preview>` for images), filename, and a
+  live progress bar. Phoenix upload errors (`:too_large`,
+  `:not_accepted`, `:too_many_files`, etc.) render below the affected
+  entry. The dropzone label dynamically reflects the upload config.
+- **Real-time validate feedback.** Inputs now use `phx-debounce="300"`
+  instead of `phx-debounce="blur"`, so per-field Ash changeset errors
+  appear ~300 ms after the user stops typing — combined with the
+  per-field touched check, this gives "errors only on the field you're
+  editing, as you edit it" behaviour.
+- **Nested-form `max_count` / `min_count` DSL options.** Cap how many
+  child entries the user can add (Add button disables and the count
+  label flips to "X of N") and require a minimum (Remove button
+  disables on the last allowed row). Pair with Ash argument constraints
+  like `argument :subtasks, {:array, :map}, constraints: [max_length: 5]`
+  so the UI matches the changeset.
+- **`cancel-upload` event handler** on `AshFormBuilder.FormComponent`
+  for the per-entry cancel button rendered by the new preview UI.
+- **First-class `:file_upload` DSL.** Promoted upload options out of the
+  generic `opts: [upload: [...]]` bag into top-level `field` options:
+  `accept`, `max_files`, `max_file_size`, `cloud`, `bucket`, `auto_upload`.
+  - `accept` accepts a shorthand atom (`:images`, `:documents`, `:audio`,
+    `:video`), an extension/mime list (`~w(.jpg .png image/webp)`), or
+    `:any` (default).
+  - `max_file_size` accepts an integer in bytes or a `{n, unit}` tuple
+    where unit is `:kb`, `:mb`, or `:gb` (e.g. `max_file_size {10, :mb}`).
+  - The legacy `opts: [upload: [...]]` shape is still honoured for
+    backwards compatibility — first-class fields take precedence when set.
+- **Auto-generated `for_<action>/N` for every declared form.** The
+  transformer now resolves the action's type at compile time and emits
+  one helper per declared `form` block — `for_create/1`, `for_update/2`,
+  `for_destroy/2`, **plus** any custom action you declare a form for
+  (`for_archive/2`, `for_publish/2`, `for_publish_draft/1`, etc.).
+  Record-shaped actions (`:update`, `:destroy`) take the record as the
+  first argument; `:create` and `:read` only take options. The generic
+  `for_action/2` runtime helper continues to work as a fallback.
+- **Tag-style multiselect combobox now supports upsert-on-create.** When
+  the destination resource declares an upsert `:create` action with an
+  identity, hitting "Create …" with an existing label returns the
+  existing record's id instead of creating a duplicate.
+- **Server-pushed combobox state.** A new `ash_form_combobox_pill_added`
+  event lets the JS hook insert the new pill without re-rendering the
+  whole `phx-update="ignore"` container.
+
+- **Per-form theming**. New `form` DSL options:
+  - `theme :shadcn` (or any atom registered with the new
+    `AshFormBuilder.Themes` registry, or a module reference)
+  - `accent :teal` (any Tailwind color: indigo, blue, violet, purple,
+    pink, rose, red, orange, amber, yellow, lime, green, emerald, teal,
+    cyan, sky, slate, gray, zinc)
+  - `transitions :smooth` (`:none | :subtle | :smooth`)
+  These options thread from the DSL through `AshFormBuilder.FormComponent`
+  into `AshFormBuilder.FormRenderer` and on to the theme module's
+  `theme_opts`. Themes don't need to be aware of the DSL — they just
+  read `:accent` / `:transitions` from `theme_opts`.
+- **Pluggable theme registry** (`AshFormBuilder.Themes`). Reference
+  themes by short atom (`:default`, `:shadcn`, `:glassmorphism`,
+  `:mishka`) or register your own:
+  ```elixir
+  config :ash_form_builder, :themes,
+    my_brand: MyAppWeb.Themes.MyBrand
+  ```
+- **New built-in field types**:
+  - `:toggle` — animated switch with accent color and transition
+  - `:checkbox_group` — vertical list of checkboxes (the new default
+    for many_to_many relationships)
+- **Polished `AshFormBuilder.Themes.Default`**. Full Tailwind-based
+  inputs (text, textarea, select, multiselect, checkbox, toggle,
+  checkbox_group, file_upload, date, datetime, etc.) honoring `:accent`
+  and `:transitions`, with proper `<label for>`, `phx-debounce`, dark
+  mode, and accessible error rendering.
+- **Repaired MishkaChelekom fallback stubs.** When the optional
+  `mishka_chelekom` dep isn't installed, the bundled stubs now render
+  real `<input>`/`<select>`/`<textarea>` elements bound to the form
+  field — so forms remain submittable end-to-end without the upstream
+  dep present.
+
+### 🔧 Improved
+
+- **Per-field touched check.** Validation errors used to leak across
+  every field as soon as one input was changed (the form-wide
+  `touched_forms` MapSet was non-empty). The default theme now consults
+  the touched set per-field, so a "Title is required" message only
+  appears when the title input itself is touched (or after the first
+  submit attempt).
+- **Multiselect: chips render below the search input.** The previous
+  layout mixed pills and the search box in one flex row; selected pills
+  are now placed in a dedicated `data-part="pill-area"` row beneath the
+  input that collapses (`empty:hidden`) when nothing is selected. Toggle
+  chevron rotates 180° when the dropdown is open.
+- **Nested form add/remove animations** powered by `Phoenix.LiveView.JS`
+  transitions — entries fade + scale on mount/remove, the add button's
+  plus icon rotates on hover, and the remove button only reveals at
+  60→100% opacity on row hover (`group-hover/entry`).
+- **Polished segmented chips, number stepper, and toggle.** Segmented
+  chip group has more breathing room (`gap-1.5 p-1.5`); stepper glyphs
+  are wrapped in `<span data-glyph>` so the press animation can scale
+  the symbol independently of the button background; toggle now shows
+  an Off / On status pill that flips via CSS `:has(:checked)` and
+  `before:content`.
+
+- **Auto-inference fallback when `action.accept` is empty.** Ash 3.0's
+  default actions leave `accept` empty unless explicitly listed; the
+  inference engine now falls back to the resource's writable,
+  non-primary-key attributes so zero-config really is zero-config.
+- **`effective_fields/2` strips inferred fields whose name matches a
+  declared `nested` block** — no more duplicate `<input>` next to a
+  nested fieldset.
+- **`gen.live` template** now calls `Resource.Form.for_create/1` and
+  `for_update/2` directly (no more raw `AshPhoenix.Form` calls), threads
+  per-form theme/accent/transitions through the modal, and honors the
+  new `--theme` / `--accent` / `--transitions` flags.
+
+### 🐛 Fixed
+
+- **Combobox `Create "…"` no longer crashes.** The previous
+  `create_new_item/4` passed a plain map directly to `Ash.create/3`,
+  which raised `FunctionClauseError`. The handler now builds a proper
+  `Ash.Changeset.for_create/3` and forwards `:domain` + `:actor` opts.
+- **Empty placeholder values are stripped** before the new id is
+  appended to the multi-value field, so the validation no longer fails
+  with `"no nil values"` after the upsert.
+- **Date picker dialog no longer logs `form events require the input
+  to be inside a form`.** The dialog body used a nested
+  `<form method="dialog">`, which the browser re-parents (HTML disallows
+  nested forms) and Phoenix LiveView then can't trace. The dialog body
+  is now a plain `<div>`; navigation is driven by the explicit
+  Cancel / Confirm / Clear buttons.
+- **Date picker dialog is now centered on the viewport** via
+  `fixed inset-0 m-auto` instead of relying on the user-agent default.
+
+- The Spark section was non-repeatable, so two `form do` blocks in a
+  resource silently merged with the *last* block winning every option
+  (a `form do action :create … end` followed by
+  `form do action :update … end` produced an `:update` form labeled
+  "Update Task" on the create page). Resolved via the new `forms do
+  form :action do … end end` shape.
+- The `GenerateFormModule` transformer called
+  `Ash.Resource.Info.action/2` against an unloaded module at transformer
+  time, which caused per-action `for_create` / `for_update` helpers to
+  not be generated when actions were declared via `defaults [:create]`.
+  Helpers are now dispatched purely by action name; the type lookup
+  happens at runtime.
+
 ## [0.3.0] - 2026-04-25
 
 ### ✨ Added

@@ -12,12 +12,14 @@ defmodule AshFormBuilder.NestedForm do
     :label,
     :class,
     :destination_resource,
+    :max_count,
     :__spark_metadata__,
     cardinality: :many,
     add_label: "Add",
     remove_label: "Remove",
     create_action: :create,
     update_action: :update,
+    min_count: 0,
     fields: []
   ]
 end

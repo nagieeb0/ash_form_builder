@@ -23,7 +23,7 @@ defmodule AshFormBuilder.InferZeroConfigTest do
       assert Enum.any?(fields, &(&1.name == :title and &1.type == :text_input))
 
       # Boolean → checkbox
-      assert Enum.any?(fields, &(&1.name == :published and &1.type == :checkbox))
+      assert Enum.any?(fields, &(&1.name == :published and &1.type == :toggle))
 
       # Integer → number
       assert Enum.any?(fields, &(&1.name == :view_count and &1.type == :number))
@@ -70,7 +70,7 @@ defmodule AshFormBuilder.InferZeroConfigTest do
   describe "relationship inference with manage_relationship" do
     test "many_to_many → multiselect_combobox" do
       # Use Info.effective_fields to get DSL + inferred fields
-      fields = AshFormBuilder.Info.effective_fields(BlogPost)
+      fields = AshFormBuilder.Info.effective_fields(BlogPost, :create)
       categories_field = Enum.find(fields, &(&1.name == :categories))
 
       assert categories_field.type == :multiselect_combobox
@@ -81,7 +81,7 @@ defmodule AshFormBuilder.InferZeroConfigTest do
 
     test "creatable combobox configuration" do
       # Use Info.effective_fields to get DSL + inferred fields
-      fields = AshFormBuilder.Info.effective_fields(BlogPost)
+      fields = AshFormBuilder.Info.effective_fields(BlogPost, :create)
       categories_field = Enum.find(fields, &(&1.name == :categories))
 
       assert categories_field.opts[:creatable] == true
@@ -91,7 +91,7 @@ defmodule AshFormBuilder.InferZeroConfigTest do
 
     test "combobox opts include search configuration" do
       # Use Info.effective_fields to get DSL + inferred fields
-      fields = AshFormBuilder.Info.effective_fields(BlogPost)
+      fields = AshFormBuilder.Info.effective_fields(BlogPost, :create)
       categories_field = Enum.find(fields, &(&1.name == :categories))
 
       # DSL field uses search_event, Infer uses search_param as default
@@ -103,7 +103,7 @@ defmodule AshFormBuilder.InferZeroConfigTest do
 
     test "infers label_key from destination resource" do
       # Use Info.effective_fields to get DSL + inferred fields
-      fields = AshFormBuilder.Info.effective_fields(BlogPost)
+      fields = AshFormBuilder.Info.effective_fields(BlogPost, :create)
       categories_field = Enum.find(fields, &(&1.name == :categories))
 
       # DSL-declared fields use explicitly set label_key
@@ -209,7 +209,7 @@ defmodule AshFormBuilder.InferZeroConfigTest do
     test "DSL-declared fields without relationship_type are not detected for preloads" do
       # DSL-declared fields need to explicitly set relationship_type
       # if they want to be included in preload detection
-      fields = AshFormBuilder.Info.effective_fields(BlogPost)
+      fields = AshFormBuilder.Info.effective_fields(BlogPost, :create)
       preloads = Infer.detect_required_preloads(fields, BlogPost, :update)
 
       # The DSL field for categories doesn't have relationship_type set

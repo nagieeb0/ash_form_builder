@@ -39,7 +39,9 @@ defmodule AshFormBuilder.Field do
             | :textarea
             | :select
             | :multiselect_combobox
+            | :checkbox_group
             | :checkbox
+            | :toggle
             | :number
             | :email
             | :password
@@ -54,9 +56,29 @@ defmodule AshFormBuilder.Field do
           class: String.t() | nil,
           wrapper_class: String.t() | nil,
           hint: String.t() | nil,
+          description: String.t() | nil,
+          autocomplete: String.t() | nil,
+          autofocus: boolean(),
+          readonly: boolean(),
+          disabled: boolean(),
+          min: number() | String.t() | nil,
+          max: number() | String.t() | nil,
+          step: number() | String.t() | nil,
+          pattern: String.t() | nil,
+          rows: pos_integer() | nil,
+          maxlength: pos_integer() | nil,
+          inputmode: String.t() | nil,
+          prefix: String.t() | nil,
+          suffix: String.t() | nil,
           relationship: atom() | nil,
           relationship_type: atom() | nil,
           destination_resource: module() | nil,
+          accept: :any | [String.t()] | String.t() | atom() | nil,
+          max_files: pos_integer() | nil,
+          max_file_size: pos_integer() | {pos_integer(), atom()} | nil,
+          cloud: module() | nil,
+          bucket: String.t() | nil,
+          auto_upload: boolean() | nil,
           opts: keyword(),
           __spark_metadata__: map() | nil
         }
@@ -68,12 +90,32 @@ defmodule AshFormBuilder.Field do
     :class,
     :wrapper_class,
     :hint,
+    :description,
+    :autocomplete,
+    :min,
+    :max,
+    :step,
+    :pattern,
+    :rows,
+    :maxlength,
+    :inputmode,
+    :prefix,
+    :suffix,
     :relationship,
     :relationship_type,
     :destination_resource,
+    :accept,
+    :max_files,
+    :max_file_size,
+    :cloud,
+    :bucket,
+    :auto_upload,
     :__spark_metadata__,
     type: :text_input,
     required: false,
+    autofocus: false,
+    readonly: false,
+    disabled: false,
     options: [],
     opts: []
   ]

@@ -118,36 +118,37 @@ defmodule AshFormBuilder.Test.Domain.Clinic do
     end
   end
 
-  form do
-    action(:create)
-    submit_label("Create clinic")
+  forms do
+    form :create do
+      submit_label("Create clinic")
 
-    field(:name) do
-      label("Clinic name")
-      placeholder("Acme Clinic")
-      required(true)
-    end
-
-    field(:specialties) do
-      label("Specialties (DSL)")
-      type(:multiselect_combobox)
-
-      opts(
-        search_event: "search_specialties",
-        debounce: 150,
-        placeholder: "Search specialties…"
-      )
-    end
-
-    nested(:subtasks) do
-      label("Subtasks")
-      cardinality(:many)
-      add_label("Add subtask")
-      remove_label("Remove subtask")
-
-      field(:title) do
-        label("Subtask title")
+      field(:name) do
+        label("Clinic name")
+        placeholder("Acme Clinic")
         required(true)
+      end
+
+      field(:specialties) do
+        label("Specialties (DSL)")
+        type(:multiselect_combobox)
+
+        opts(
+          search_event: "search_specialties",
+          debounce: 150,
+          placeholder: "Search specialties…"
+        )
+      end
+
+      nested(:subtasks) do
+        label("Subtasks")
+        cardinality(:many)
+        add_label("Add subtask")
+        remove_label("Remove subtask")
+
+        field(:title) do
+          label("Subtask title")
+          required(true)
+        end
       end
     end
   end

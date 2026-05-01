@@ -27,7 +27,7 @@ defmodule AshFormBuilder.UploadTest do
 
   describe "DSL & inference" do
     test "UserProfile.Form is generated with file_upload field in schema" do
-      schema = UploadResources.UserProfile.Form.schema()
+      schema = UploadResources.UserProfile.Form.schema(:create)
       avatar_field = Enum.find(schema.fields, &(&1.name == :avatar))
 
       assert avatar_field != nil
@@ -38,7 +38,7 @@ defmodule AshFormBuilder.UploadTest do
       # The @type_map now includes :file => :file_upload
       # avatar is an explicit :string argument inferred as :text_input by default,
       # but it's declared in the DSL as :file_upload — effective_entities merges it
-      entities = AshFormBuilder.Info.effective_entities(UploadResources.UserProfile)
+      entities = AshFormBuilder.Info.effective_entities(UploadResources.UserProfile, :create)
       avatar = Enum.find(entities, &(&1.name == :avatar))
 
       assert avatar != nil
@@ -52,7 +52,7 @@ defmodule AshFormBuilder.UploadTest do
     end
 
     test "upload opts are accessible on the field" do
-      entities = AshFormBuilder.Info.effective_entities(UploadResources.UserProfile)
+      entities = AshFormBuilder.Info.effective_entities(UploadResources.UserProfile, :create)
       avatar = Enum.find(entities, &(&1.name == :avatar))
 
       upload_cfg = Keyword.get(avatar.opts, :upload, [])

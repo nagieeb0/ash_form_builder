@@ -47,6 +47,7 @@ defmodule AshFormBuilder.ThemeTest do
         :select,
         :multiselect_combobox,
         :checkbox,
+        :toggle,
         :number,
         :email,
         :password,
@@ -57,12 +58,19 @@ defmodule AshFormBuilder.ThemeTest do
         :tel
       ]
 
+      form =
+        AshFormBuilder.Test.Resources.Post.Form.for_create(authorize?: false)
+
       for type <- types do
-        field = %Field{name: :test, type: type}
-        form = %{}
+        field = %Field{name: :title, type: type}
 
         # Should not raise
-        result = AshFormBuilder.Themes.Default.render_field(%{form: form, field: field}, [])
+        result =
+          AshFormBuilder.Themes.Default.render_field(
+            %{form: form, field: field, target: nil, uploads: %{}},
+            []
+          )
+
         assert is_struct(result, Phoenix.LiveView.Rendered)
       end
     end

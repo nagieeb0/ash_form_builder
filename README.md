@@ -5,20 +5,28 @@
 [![Hex.pm](https://img.shields.io/hexpm/l/ash_form_builder.svg)](https://hex.pm/packages/ash_form_builder)
 [![Documentation](https://img.shields.io/badge/hex.pm-docs-green.svg)](https://hexdocs.pm/ash_form_builder)
 
-**Latest Version:** [0.3.0](https://hex.pm/packages/ash_form_builder/0.3.0) | [Changelog](CHANGELOG.md)
+**Latest Version:** [0.4.0](https://hex.pm/packages/ash_form_builder/0.4.0) | [Changelog](CHANGELOG.md)
 
-**AshFormBuilder = AshPhoenix.Form + Auto UI + Smart Components + Themes + Full CRUD Generator**
+> **What's new in 0.4.0**
+> - 🎡 **iOS-style wheel datepicker** in the default theme (modal `<dialog>`, three or five scroll-snap wheels, no JS deps)
+> - 📦 **First-class `:file_upload` DSL** — `accept :images`, `max_files 3`, `max_file_size {10, :mb}`, `cloud MyApp.Cloud`
+> - 🪄 **Auto-generated `for_<action>/N`** for *every* declared form, not just `:create` / `:update`
+> - 🏷️ **Tag combobox upserts on create** when the destination resource has an upsert action with an identity
+> - 🎨 Polished default theme: per-field validation surfacing, animated nested-form add/remove, on/off toggle pill, chips below input
+
+**AshFormBuilder = AshPhoenix.Form + Auto UI + Pluggable Themes + Full CRUD Generator**
 
 A declarative form generation engine for [Ash Framework](https://hexdocs.pm/ash) and [Phoenix LiveView](https://hexdocs.pm/phoenix_live_view).
 
-Define your form structure in **1-3 lines** inside your Ash Resource, and get a complete, policy-compliant LiveView form with:
-- ✅ **Full CRUD LiveView generator** — one command, production-grade scaffold (New in v0.3.0)
-- ✅ Auto-inferred fields from your action's `accept` list
-- ✅ Searchable combobox for many-to-many relationships
-- ✅ Creatable combobox (create related records on-the-fly)
-- ✅ Dynamic nested forms for has_many relationships
-- ✅ Pluggable theme system (Default, Glassmorphism, Shadcn, MishkaChelekom, or custom)
-- ✅ Full Ash policy and validation enforcement
+Define your form structure in a `forms do … end` block inside your Ash Resource and get a complete, policy-compliant LiveView form with:
+- ✅ **One form per Ash action**, declared with `form :create do … end`
+- ✅ **Per-form theming** — `theme :shadcn`, `accent :teal`, `transitions :smooth`
+- ✅ **Pluggable theme registry** — short atoms (`:default`, `:shadcn`, `:glassmorphism`, `:mishka`) or your own
+- ✅ Auto-inferred fields with smart defaults — booleans become **toggles**, many-to-many becomes a **checkbox group**
+- ✅ Dynamic nested forms for `has_many` relationships (recursive, any depth)
+- ✅ Searchable combobox available via `type :multiselect_combobox` for many-to-many when you want it
+- ✅ **Full CRUD scaffold** — `mix ash_form.gen.live -r MyApp.Resource`
+- ✅ Full Ash policy and validation enforcement, including atomic updates and changesets
 
 ---
 
@@ -26,7 +34,7 @@ Define your form structure in **1-3 lines** inside your Ash Resource, and get a 
 
 | Layer | AshPhoenix.Form | AshFormBuilder |
 |-------|----------------|----------------|
-| **CRUD Scaffold** | ❌ Write it all yourself | ✅ **`mix ash_form_builder.gen.live`** |
+| **CRUD Scaffold** | ❌ Write it all yourself | ✅ **`mix ash_form.gen.live -r MyApp.Resource`** |
 | **Data Table** | ❌ Build your own | ✅ **Cinder (filter, sort, paginate, URL sync)** |
 | **Form State** | ✅ Provides `AshPhoenix.Form` | ✅ Uses `AshPhoenix.Form` |
 | **Field Inference** | ❌ Manual field definition | ✅ **Auto-infers from action.accept** |
@@ -40,71 +48,100 @@ Define your form structure in **1-3 lines** inside your Ash Resource, and get a 
 
 ---
 
-## ⚡ 3-Line Quick Start
+## ⚡ Quick Start
 
 ### 1. Add to mix.exs
 
 ```elixir
-{:ash_form_builder, "~> 0.3.0"}
+{:ash_form_builder, "~> 0.4.0"}
 ```
 
-### 2. Configure Theme (config/config.exs)
+### 2. (Optional) configure a theme
 
 ```elixir
-config :ash_form_builder, :theme, AshFormBuilder.Themes.Default
+# config/config.exs — short atom or module name
+config :ash_form_builder, :theme, :default
+# config :ash_form_builder, :theme, :shadcn
+# config :ash_form_builder, :theme, AshFormBuilder.Themes.Glassmorphism
 ```
 
-### 3. Add Extension to Resource
+If you write your own themes, register them once and refer to them by short name from any form:
+
+```elixir
+config :ash_form_builder, :themes,
+  my_brand: MyAppWeb.Themes.MyBrand,
+  retro:    MyAppWeb.Themes.Retro
+```
+
+### 3. Add the extension and a `forms do … end` block
 
 ```elixir
 defmodule MyApp.Todos.Task do
   use Ash.Resource,
     domain: MyApp.Todos,
-    extensions: [AshFormBuilder]  # ← Add this
+    extensions: [AshFormBuilder]
 
   attributes do
     uuid_primary_key :id
-    attribute :title, :string, allow_nil?: false
-    attribute :description, :text
-    attribute :completed, :boolean, default: false
+    attribute :title,       :string,  allow_nil?: false, public?: true
+    attribute :description, :string,                     public?: true
+    attribute :completed,   :boolean, default: false,    public?: true
   end
 
   actions do
-    defaults [:create, :read, :update, :destroy]
+    defaults [:read, :destroy]
+
+    create :create do
+      accept [:title, :description, :completed]
+    end
+
+    update :update do
+      accept [:title, :description, :completed]
+    end
   end
 
-  # Create form - auto-infers fields from :create action
-  form do
-    action :create  # ← That's it! Fields auto-inferred
-    submit_label "Create Task"
-  end
+  forms do
+    form :create do
+      submit_label "Create Task"
+      accent       :teal
+      transitions  :smooth
 
-  # Update form - separate configuration for update action
-  form do
-    action :update
-    submit_label "Update Task"
+      field :title do
+        label       "Task Title"
+        placeholder "Enter task title"
+        required    true
+      end
+    end
+
+    form :update do
+      submit_label "Update Task"
+      accent       :indigo
+    end
   end
 end
 ```
 
+The DSL accepts one `form :action do … end` entity per Ash action. Each form
+keeps its own `submit_label`, `accent`, `transitions`, `theme`, fields and
+nested blocks. Fields are auto-inferred from the action's `accept` list — only
+declare a `field :title do … end` to override label/placeholder/required, etc.
+
 ### 4. Use in LiveView
 
-**Create Form:**
-
 ```elixir
-defmodule MyAppWeb.TaskLive.Form do
+defmodule MyAppWeb.TaskLive.New do
   use MyAppWeb, :live_view
 
   def mount(_params, _session, socket) do
     form = MyApp.Todos.Task.Form.for_create(actor: socket.assigns.current_user)
-    {:ok, assign(socket, form: form, mode: :create)}
+    {:ok, assign(socket, form: form)}
   end
 
   def render(assigns) do
     ~H"""
     <.live_component
       module={AshFormBuilder.FormComponent}
-      id="task-form"
+      id="task-create-form"
       resource={MyApp.Todos.Task}
       form={@form}
     />
@@ -116,6 +153,21 @@ defmodule MyAppWeb.TaskLive.Form do
   end
 end
 ```
+
+`AshFormBuilder.FormComponent` reads the action from `form.source` and pulls
+the right form config (theme, accent, transitions, fields, nested) from the
+DSL. You can also override at render time by passing `theme={:shadcn}`,
+`accent={:rose}`, or `transitions={:none}` directly to the live component.
+
+### 5. Or scaffold the whole CRUD interface
+
+```bash
+mix ash_form.gen.live -r MyApp.Todos.Task --accent teal --transitions smooth
+```
+
+Generates a Phoenix LiveView (`index.ex`) and template (`index.html.heex`) with
+`Cinder.collection` for the data table and the form modal pre-wired to call
+`Task.Form.for_create/1` and `Task.Form.for_update/2`.
 
 **Update Form:**
 
@@ -170,20 +222,24 @@ actions do
   end
 end
 
-form do
-  action :create
-  
-  field :tags do
-    type :multiselect_combobox
-    opts [
-      search_event: "search_tags",
-      debounce: 300,
-      label_key: :name,
-      value_key: :id
-    ]
+forms do
+  form :create do
+    field :tags do
+      type :multiselect_combobox
+      opts [
+        search_event: "search_tags",
+        debounce: 300,
+        label_key: :name,
+        value_key: :id
+      ]
+    end
   end
 end
 ```
+
+> Many-to-many relationships render as a `:checkbox_group` by default
+> (vertical list of checkboxes). Set `type :multiselect_combobox`
+> explicitly when you want the searchable / creatable combobox above.
 
 **LiveView Search Handler:**
 
@@ -205,15 +261,17 @@ end
 Allow users to create new related records without leaving the form:
 
 ```elixir
-form do
-  field :tags do
-    type :multiselect_combobox
-    opts [
-      creatable: true,              # ← Enable creating
-      create_action: :create,
-      create_label: "Create \"",
-      search_event: "search_tags"
-    ]
+forms do
+  form :create do
+    field :tags do
+      type :multiselect_combobox
+      opts [
+        creatable: true,              # ← Enable creating
+        create_action: :create,
+        create_label: "Create \"",
+        search_event: "search_tags"
+      ]
+    end
   end
 end
 ```
@@ -234,15 +292,22 @@ relationships do
   has_many :subtasks, MyApp.Todos.Subtask
 end
 
-form do
-  nested :subtasks do
-    label "Subtasks"
-    cardinality :many
-    add_label "Add Subtask"
-    remove_label "Remove"
-    
-    field :title, required: true
-    field :completed, type: :checkbox
+forms do
+  form :create do
+    nested :subtasks do
+      label "Subtasks"
+      cardinality :many
+      add_label "Add Subtask"
+      remove_label "Remove"
+
+      field :title do
+        required true
+      end
+
+      field :done do
+        type :toggle
+      end
+    end
   end
 end
 ```
@@ -299,30 +364,42 @@ defmodule MyApp.Users.User do
     end
 
     field :avatar do
-      type :file_upload
-      label "Profile Photo"
-      hint "JPEG or PNG, max 5 MB"
-      
-      opts upload: [
-        cloud: MyApp.Buckets.Cloud,      # Buckets.Cloud module for storage
-        max_entries: 1,                   # Allow only 1 file
-        max_file_size: 5_000_000,         # 5 MB max
-        accept: ~w(.jpg .jpeg .png)       # Accepted file types
-      ]
+      type           :file_upload
+      label          "Profile Photo"
+      hint           "JPEG or PNG, max 5 MB"
+
+      accept         :images               # or ~w(.jpg .jpeg .png) — see table below
+      max_files      1
+      max_file_size  {5, :mb}              # also accepts a raw byte integer
+      cloud          MyApp.Buckets.Cloud
     end
   end
 end
 ```
 
-### Upload Configuration Options
+### Upload DSL options (v0.4.0)
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `cloud` | module | required | Module implementing `Buckets.Cloud` behaviour |
-| `max_entries` | integer | 1 | Maximum number of files allowed |
-| `max_file_size` | integer | 8_000_000 | Maximum file size in bytes |
-| `accept` | list | `:any` | Accepted file extensions or MIME types |
-| `bucket_name` | atom | nil | Optional bucket name for storage |
+Upload options are now first-class DSL fields on `field` rather than
+buried inside `opts: [upload: [...]]`. The legacy keyword shape is still
+honoured, but first-class fields take precedence when both are set.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `accept` | atom \| list \| string | `:any` | `:any`, a shorthand atom (`:images`, `:documents`, `:audio`, `:video`), or an explicit list (`~w(.jpg .png image/webp)`) |
+| `max_files` | pos_integer | `1` | Maximum number of files (Phoenix `max_entries`) |
+| `max_file_size` | pos_integer \| `{n, unit}` | `8_000_000` | Bytes, or `{10, :mb}` / `{500, :kb}` / `{1, :gb}` |
+| `cloud` | module | nil | Optional `Buckets.Cloud` module — when omitted the upload is consumed in-process |
+| `bucket` | string | nil | Optional bucket / prefix passed to the cloud module |
+| `auto_upload` | boolean | `false` | Mirrors Phoenix LiveView's `auto_upload: true` |
+
+**Shorthand `accept` values:**
+
+| Atom | Expands to |
+|------|------------|
+| `:images` | `~w(.jpg .jpeg .png .gif .webp .svg)` |
+| `:documents` | `~w(.pdf .doc .docx .txt .md .rtf)` |
+| `:audio` | `~w(.mp3 .wav .ogg .m4a .flac)` |
+| `:video` | `~w(.mp4 .mov .webm .avi .mkv)` |
 
 ### How It Works
 
@@ -338,17 +415,49 @@ end
 
 ```elixir
 field :attachments do
-  type :file_upload
-  label "Attachments"
-  hint "Upload multiple documents (max 5)"
-  
-  opts upload: [
-    cloud: MyApp.Buckets.Cloud,
-    max_entries: 5,
-    max_file_size: 10_000_000,
-    accept: ~w(.pdf .doc .docx)
-  ]
+  type           :file_upload
+  label          "Attachments"
+  hint           "Upload multiple documents (max 5)"
+
+  accept         :documents
+  max_files      5
+  max_file_size  {10, :mb}
+  cloud          MyApp.Buckets.Cloud
 end
+```
+
+### Custom action helpers (v0.4.0)
+
+Each declared `form :action do … end` block generates a matching
+`Resource.Form.for_<action>/N` helper — including for **custom action
+names**, not just `:create` / `:update`. Record-shaped actions
+(`:update`, `:destroy`) take the record as the first argument.
+
+```elixir
+actions do
+  create  :create do …
+  update  :update do …
+  update  :archive, accept: [] do …
+  update  :publish, accept: [:published_at] do …
+end
+
+forms do
+  form :create  do … end
+  form :update  do … end
+  form :archive do submit_label "Archive" end
+  form :publish do submit_label "Publish now" end
+end
+```
+
+```elixir
+# Auto-generated:
+MyApp.Posts.Post.Form.for_create()                      # :create  (resource form)
+MyApp.Posts.Post.Form.for_update(post)                  # :update  (record form)
+MyApp.Posts.Post.Form.for_archive(post, actor: user)    # :archive (record form)
+MyApp.Posts.Post.Form.for_publish(post, actor: user)    # :publish (record form)
+
+# Plus the generic fallback for anything else:
+MyApp.Posts.Post.Form.for_action(:custom, record: post, actor: user)
 ```
 
 ### Using in LiveView

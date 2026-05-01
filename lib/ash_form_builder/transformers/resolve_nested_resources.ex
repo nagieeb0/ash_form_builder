@@ -28,10 +28,11 @@ defmodule AshFormBuilder.Transformers.ResolveNestedResources do
     # at transformer time, so Ash.Resource.Info.relationship/2 cannot be used here.
     ash_relationships = Spark.Dsl.Extension.get_entities(dsl_state, [:relationships])
 
-    form_entities = Spark.Dsl.Extension.get_entities(dsl_state, [:form])
+    forms = Spark.Dsl.Extension.get_entities(dsl_state, [:forms])
 
     nested_map =
-      form_entities
+      forms
+      |> Enum.flat_map(& &1.entities)
       |> Enum.filter(&is_struct(&1, AshFormBuilder.NestedForm))
       |> Map.new(fn nested ->
         rel_name = nested.relationship || nested.name
