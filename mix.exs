@@ -48,7 +48,7 @@ defmodule AshFormBuilder.MixProject do
   defp deps do
     [
       {:cinder, "~> 0.12"},
-      {:igniter, "~> 0.6"},
+      {:igniter, "~> 0.6", only: [:dev, :test]},
       # Core Dependencies
       {:spark, "~> 2.0"},
       {:ash, "~> 3.0"},
