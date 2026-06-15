@@ -413,6 +413,12 @@ defmodule Mix.Tasks.AshForm.Gen.Live do
       "  4. The route \"/#{route_segment}\" uses simple pluralisation. Rename in router.ex if needed."
     )
 
+    Mix.shell().info([
+      :yellow,
+      "  5. The generated index uses Cinder. Add `{:cinder, \"~> 0.12\"}` to your deps if it isn't already present.",
+      :reset
+    ])
+
     Mix.shell().info("")
   end
 

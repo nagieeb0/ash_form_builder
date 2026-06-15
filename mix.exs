@@ -47,7 +47,10 @@ defmodule AshFormBuilder.MixProject do
 
   defp deps do
     [
-      {:cinder, "~> 0.12"},
+      # Optional: only needed by apps using the `mix ash_form.gen.live` /
+      # `gen.crud` scaffolds, which emit Cinder-backed index tables. The
+      # library itself never calls Cinder at runtime.
+      {:cinder, "~> 0.12", optional: true},
       {:igniter, "~> 0.6", only: [:dev, :test]},
       # Core Dependencies
       {:spark, "~> 2.0"},
@@ -180,6 +183,11 @@ defmodule AshFormBuilder.MixProject do
         mishka_chelekom: [
           app: :mishka_chelekom,
           requirement: "~> 0.0.8",
+          optional: true
+        ],
+        cinder: [
+          app: :cinder,
+          requirement: "~> 0.12",
           optional: true
         ]
       ]
